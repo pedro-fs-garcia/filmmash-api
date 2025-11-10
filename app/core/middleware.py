@@ -1,9 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .metrics import add_metrics_middleware
+
 
 def add_middlewares(app: FastAPI) -> None:
     _add_cors_middleware(app)
+    add_metrics_middleware(app)
 
 
 def _add_cors_middleware(app: FastAPI) -> None:

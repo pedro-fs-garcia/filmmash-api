@@ -10,7 +10,7 @@ from .logger import get_logger
 
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
-    async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:  # type: ignore
+    async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         get_logger().warning(f"HTTP error: {exc.detail}", extra={"path": str(request.url)})
 
         error_response: dict[str, dict[str, Any]] = {
@@ -27,7 +27,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(status_code=exc.status_code, content=error_response)
 
     @app.exception_handler(Exception)
-    async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:  # type: ignore
+    async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         get_logger().error(f"Unhandled exception: {exc}", extra={"path": str(request.url)})
 
         error_response = {

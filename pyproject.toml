@@ -14,7 +14,8 @@ dependencies = [
     "gunicorn",
     "SQLAlchemy",
     "alembic",
-    "asyncpg"
+    "asyncpg",
+    "psutil"
 ]
 requires-python = ">=3.12"
 authors = [
@@ -42,7 +43,8 @@ dev = [
     "pre-commit",
     "pytest",
     "pytest-cov",
-    "httpx"
+    "httpx",
+    "types-psutil"
 ]
 
 [project.urls]
@@ -88,7 +90,9 @@ strict = true
 python_version = "3.12"
 disallow_untyped_defs = true
 warn_unused_ignores = true
+warn_return_any = true
 plugins = ["pydantic.mypy"]
+disable_error_code = ["misc"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
