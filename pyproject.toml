@@ -15,7 +15,9 @@ dependencies = [
     "SQLAlchemy",
     "alembic",
     "asyncpg",
-    "psutil"
+    "psutil",
+    "pytest",
+    "pytest-asyncio"
 ]
 requires-python = ">=3.12"
 authors = [
@@ -44,7 +46,7 @@ dev = [
     "pytest",
     "pytest-cov",
     "httpx",
-    "types-psutil"
+    "types-psutil",
 ]
 
 [project.urls]
