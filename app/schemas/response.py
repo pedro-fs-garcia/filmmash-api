@@ -24,7 +24,12 @@ class Meta(BaseModel):
     )
 
 
-class ResponseEnvelope(BaseModel):
+class GenericSuccessContent[T](BaseModel):
+    data: T | None
+    meta: Meta
+
+
+class SuccessContent(BaseModel):
     """
     Standard API response envelope for successful results.
 
@@ -40,7 +45,7 @@ class ResponseEnvelope(BaseModel):
     )
 
 
-class ErrorResponse(BaseModel):
+class ErrorContent(BaseModel):
     """
     Standardized error response format, based on RFC 7807 (Problem Details for HTTP APIs).
     """

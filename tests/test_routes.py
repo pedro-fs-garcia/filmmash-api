@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from httpx import AsyncClient
 
@@ -8,8 +10,11 @@ async def test_health_check(client: AsyncClient) -> None:
     response = await client.get("/")
     assert response.status_code == 200
 
-    data = response.json()
+    response_json = response.json()
+    data: dict[Any, Any] = response_json.get("data")
+    meta: dict[Any, Any] = response_json.get("meta")
     assert data.get("status") == "ok"
+    assert meta.get("request_id")
 
     response = await client.post("/")
     print(f"response: {response.json()}")

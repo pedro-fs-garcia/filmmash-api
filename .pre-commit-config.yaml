@@ -10,10 +10,17 @@ repos:
     rev: v1.11.2
     hooks:
         - id: mypy
+          args: [--enable-incomplete-feature=NewGenericSyntax]
           additional_dependencies:
             - pydantic>=2.0
             - pydantic-settings>=2.0
             - sqlalchemy>=2.0
+            - fastapi
+            - prometheus-client
+            - psutil
+            - types-psutil
+            - pytest
+            - httpx
 
 -   repo: https://github.com/PyCQA/bandit
     rev: 1.7.9

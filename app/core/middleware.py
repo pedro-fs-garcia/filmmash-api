@@ -11,7 +11,7 @@ from .metrics import add_metrics_middleware
 def add_middlewares(app: FastAPI) -> None:
     _add_cors_middleware(app)
     add_metrics_middleware(app)
-    _add_http_middleware(app)
+    _add_http_middlewares(app)
 
 
 def _add_cors_middleware(app: FastAPI) -> None:
@@ -24,7 +24,7 @@ def _add_cors_middleware(app: FastAPI) -> None:
     )
 
 
-def _add_http_middleware(app: FastAPI) -> None:
+def _add_http_middlewares(app: FastAPI) -> None:
     @app.middleware("http")
     async def add_request_id_middleware(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
