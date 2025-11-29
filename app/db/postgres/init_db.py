@@ -18,7 +18,7 @@ async def init_postgres_db() -> None:
             await _create_tables()
             return
         except Exception as e:
-            print(e)
+            get_logger().error(f"[{_ + 1}] Error connecting to database: {e.with_traceback(None)}")
             await asyncio.sleep(0.5)
 
 
@@ -36,13 +36,11 @@ async def _create_db_if_not_exists() -> None:
             text("SELECT 1 FROM pg_database WHERE datname=:name"), {"name": settings.POSTGRES_DB}
         )
         if not result.scalar():
-            get_logger().info(
-                f"Banco de dados {settings.POSTGRES_DB} não encontrado. Criando banco de dados..."
-            )
+            get_logger().info(f"Database {settings.POSTGRES_DB} not found. Creating database...")
             await conn.execute(
                 text(f'CREATE DATABASE "{settings.POSTGRES_DB}" OWNER {settings.POSTGRES_USER}')
             )
-            get_logger().info(f"Banco de dados {settings.POSTGRES_DB} criado com sucesso.")
+            get_logger().info(f"Database {settings.POSTGRES_DB} created successfully.")
 
 
 async def _create_tables() -> None:

@@ -35,7 +35,7 @@ class AsyncLogger:
         max_file_size = 10 * 1024 * 1024  # 10MB
         backup_count = 5
 
-        # Handlers de arquivo
+        # File handlers
         file_handler = RotatingFileHandler(
             "logs/app.json", maxBytes=max_file_size, backupCount=backup_count, encoding="utf-8"
         )
@@ -48,21 +48,21 @@ class AsyncLogger:
         error_handler.setFormatter(formatter)
         error_handler.setLevel(logging.ERROR)
 
-        # Console (também em JSON)
+        # Console (also in json)
         stream_handler = logging.StreamHandler()
         stream_handler.setFormatter(formatter)
         stream_handler.setLevel(logging.DEBUG)
 
-        # Fila centralizada
+        # Centralized logging queue
         self.log_queue: Queue[logging.LogRecord] = Queue(-1)
         queue_handler = QueueHandler(self.log_queue)
 
-        # Logger principal
+        # Main logger
         self.logger = logging.getLogger("app")
         self.logger.setLevel(logging.DEBUG)
         self.logger.addHandler(queue_handler)
 
-        # Listener roda em thread separada
+        # Queue listener to handle log records asynchronously
         self.listener = QueueListener(
             self.log_queue,
             file_handler,

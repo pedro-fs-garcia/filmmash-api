@@ -6,11 +6,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Filmmash Backend"
     PROJECT_DESCRIPTION: str = "Backend e API GATEWAY para o projeto FilmMash"
-    VERSION: str = "0.1.0"
+    PROJECT_VERSION: str = "0.1.0"
 
     ENVIRONMENT: str = "development"
 
-    # Variáveis do Banco de Dados
+    # CORS settings
+    CORS_ALLOW_ORIGINS: list[str] = ["*"]
+    CORS_ALLOW_CREDENTIALS: bool = True
+    CORS_ALLOW_METHODS: list[str] = ["*"]
+    CORS_ALLOW_HEADERS: list[str] = ["*"]
+
+    # Postgres settings
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
     POSTGRES_DB: str = "filmmash_db"
@@ -33,9 +39,9 @@ class Settings(BaseSettings):
             f"{self.POSTGRES_PORT}/postgres"
         )
 
-    # Variáveis JWT
+    # JWT variables
     JWT_SECRET_KEY: str = "your_jwt_secret_key"
-    JWT_ALGORITHM: str = ""
+    JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
 
     model_config = SettingsConfigDict(extra="allow", env_file=".env", env_file_encoding="utf-8")
