@@ -18,7 +18,9 @@ dependencies = [
     "prometheus-client",
     "psutil",
     "pytest",
-    "pytest-asyncio"
+    "pytest-asyncio",
+    "passlib[argon2]",
+    "PyJWT"
 ]
 requires-python = ">=3.12"
 authors = [
@@ -97,6 +99,10 @@ warn_unused_ignores = true
 warn_return_any = true
 plugins = ["pydantic.mypy"]
 disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
+module = ["jwt.*", "passlib.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"

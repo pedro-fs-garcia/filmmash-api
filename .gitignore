@@ -41,3 +41,6 @@ logs/
 .ruff_cache/
 
 .coverage
+
+
+.github/

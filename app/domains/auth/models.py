@@ -1,0 +1,118 @@
+from datetime import datetime
+from uuid import UUID, uuid4
+
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Table, func
+from sqlalchemy import Enum as SqlEnum
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.postgres.base import Base
+
+from .enums import AuthProvider, SessionStatus
+
+user_roles = Table(
+    "user_roles",
+    Base.metadata,
+    Column("user_id", PG_UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True),
+    Column("role_id", Integer, ForeignKey("roles.id"), primary_key=True),
+)
+
+role_permissions = Table(
+    "role_permissions",
+    Base.metadata,
+    Column("role_id", Integer, ForeignKey("roles.id"), primary_key=True),
+    Column("permission_id", Integer, ForeignKey("permissions.id"), primary_key=True),
+)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=True, onupdate=func.now())
+
+    sessions: Mapped[list["Session"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    roles: Mapped[list["Role"]] = relationship(secondary=user_roles, back_populates="users")
+
+    def __repr__(self) -> str:
+        return f"<User(id={self.id}, name='{self.name}')>"
+
+
+class Role(Base):
+    __tablename__ = "roles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
+    description: Mapped[str] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+
+    users: Mapped[list["User"]] = relationship(secondary=user_roles, back_populates="roles")
+    permissions: Mapped[list["Permission"]] = relationship(
+        secondary=role_permissions, back_populates="roles"
+    )
+
+    def __repr__(self) -> str:
+        return f"<Role(id={self.id}, name={self.name})>"
+
+
+class Permission(Base):
+    __tablename__ = "permissions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    description: Mapped[str] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+
+    roles: Mapped[list["Role"]] = relationship(
+        secondary=role_permissions, back_populates="permissions"
+    )
+
+    def __repr__(self) -> str:
+        return f"<Permission(id={self.id}, name={self.name})>"
+
+
+class Session(Base):
+    __tablename__ = "sessions"
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    refresh_token_hash: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    status: Mapped[SessionStatus] = mapped_column(
+        SqlEnum(SessionStatus), nullable=False, default=SessionStatus.ACTIVE
+    )
+    device_info: Mapped[dict[str, str | None]] = mapped_column(
+        JSON, nullable=False
+    )  # Validate with SessionDeviceInfo in service layer
+    user_agent: Mapped[str | None] = mapped_column(String, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String, nullable=True)
+    auth_provider: Mapped[AuthProvider] = mapped_column(
+        SqlEnum(AuthProvider), nullable=False, default=AuthProvider.LOCAL
+    )
+    provider_account_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    user: Mapped["User"] = relationship(back_populates="sessions")
+
+    def __repr__(self) -> str:
+        return f"<Session(id={self.id}, status={self.status})>"

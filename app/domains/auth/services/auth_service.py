@@ -1,0 +1,44 @@
+from typing import Any
+
+from app.core.security import JWTService, PasswordSecurity
+
+from ..schemas import CreateUserRequest, UserLoginRequest
+from .user_service import UserService
+
+
+class AuthService:
+    def __init__(self, user_service: UserService):
+        self.user_service = user_service
+        self.passwordSecurity = PasswordSecurity()
+        self.jwtService = JWTService()
+
+    async def register(self, dto: CreateUserRequest) -> dict[str, Any]:
+        password_hash = self.passwordSecurity.generate_password_hash(dto.password)
+        new_user = await self.user_service.create_user(dto.email, dto.name, password_hash)
+        access_token = self.jwtService.create_access_token(new_user.id, [])
+        refresh_token = self.jwtService.create_refresh_token(new_user.id, [])
+
+        return {
+            "id": str(new_user.id),
+            "email": new_user.email,
+            "username": new_user.username,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+        }
+
+    async def login(self, dto: UserLoginRequest) -> tuple[str, str]:
+        user = await self.user_service.get_user(email=dto.email)
+        if user is None:
+            raise Exception("User not found")
+
+        password_hash = user.password_hash
+
+        is_authenticated = self.passwordSecurity.verify_password(dto.password, password_hash)
+
+        if not is_authenticated:
+            raise Exception("Invalid password")
+
+        access_token = self.jwtService.create_access_token(user.id, [])
+        refresh_token = self.jwtService.create_refresh_token(user.id, [])
+
+        return (access_token, refresh_token)
