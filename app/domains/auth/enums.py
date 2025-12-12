@@ -8,7 +8,7 @@ class SessionStatus(Enum):
     REVOKED = "revoked"
 
 
-class AuthProvider(Enum):
+class OAuthProvider(Enum):
     LOCAL = "local"
     GOOGLE = "google"
     MICROSOFT = "microsoft"

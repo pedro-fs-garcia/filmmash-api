@@ -93,15 +93,15 @@ class PermissionRepository:
         )
 
     async def add_to_roles(self, id: int, role_ids: list[int]) -> PermissionWithRoles | None:
-        from ..models import Role as RoleModel
+        from ..models import Role as Role
         from ..models import role_permissions
 
         permission_stmt = select(PermissionModel.id).where(PermissionModel.id == id)
         permission_res = await self.db.execute(permission_stmt)
         if permission_res.scalar_one_or_none() is None:
-            raise ResourceNotFoundError("Perission", id)
+            raise ResourceNotFoundError("Permission", id)
 
-        stmt = select(RoleModel.id).where(RoleModel.id.in_(role_ids))
+        stmt = select(Role.id).where(Role.id.in_(role_ids))
         result = await self.db.execute(stmt)
         found_ids = set(result.scalars().all())
 

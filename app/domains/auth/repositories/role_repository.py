@@ -10,7 +10,7 @@ from app.domains.auth.schemas import CreateRoleDTO, ReplaceRoleDTO, UpdateRoleDT
 
 from ..entities import Permission, RoleWithPermissions
 from ..entities import Role as RoleEntity
-from ..models import Role as RoleModel
+from ..models import Role as Role
 
 
 class RoleRepository:
@@ -19,7 +19,7 @@ class RoleRepository:
 
     async def create(self, dto: CreateRoleDTO) -> RoleEntity:
         insert_values = dto.model_dump(exclude_none=True)
-        stmt = insert(RoleModel).values(**insert_values).returning(RoleModel)
+        stmt = insert(Role).values(**insert_values).returning(Role)
         try:
             result = await self.db.execute(stmt)
             row = result.scalar_one()
@@ -33,13 +33,13 @@ class RoleRepository:
             raise RuntimeError("Failed to create role") from e
 
     async def get_all(self) -> list[RoleEntity]:
-        stmt = select(RoleModel.id, RoleModel.name, RoleModel.description)
+        stmt = select(Role.id, Role.name, Role.description)
         result = await self.db.execute(stmt)
         rows = result.scalars().all()
         return [self._to_entity(row) for row in rows]
 
     async def get_by_id(self, id: int) -> RoleEntity | None:
-        stmt = select(RoleModel.id, RoleModel.name, RoleModel.description).where(RoleModel.id == id)
+        stmt = select(Role.id, Role.name, Role.description).where(Role.id == id)
         result = await self.db.execute(stmt)
         row = result.scalar_one_or_none()
         if row is None:
@@ -47,9 +47,7 @@ class RoleRepository:
         return self._to_entity(row)
 
     async def get_by_name(self, name: str) -> RoleEntity | None:
-        stmt = select(RoleModel.id, RoleModel.name, RoleModel.description).where(
-            RoleModel.name == name
-        )
+        stmt = select(Role.id, Role.name, Role.description).where(Role.name == name)
         result = await self.db.execute(stmt)
         row = result.scalar_one_or_none()
         if row is None:
@@ -62,9 +60,7 @@ class RoleRepository:
         if not update_values:
             raise ValueError("No fields provided for update")
 
-        stmt = (
-            update(RoleModel).where(RoleModel.id == id).values(**update_values).returning(RoleModel)
-        )
+        stmt = update(Role).where(Role.id == id).values(**update_values).returning(Role)
         result = await self.db.execute(stmt)
         row = result.scalar_one_or_none()
         if row is None:
@@ -73,7 +69,7 @@ class RoleRepository:
         return self._to_entity(row)
 
     async def delete(self, id: int) -> RoleEntity | None:
-        stmt = delete(RoleModel).where(RoleModel.id == id).returning(RoleModel)
+        stmt = delete(Role).where(Role.id == id).returning(Role)
         try:
             result = await self.db.execute(stmt)
             await self.db.commit()
@@ -85,9 +81,7 @@ class RoleRepository:
         return self._to_entity(row)
 
     async def get_with_permissions(self, id: int) -> RoleWithPermissions | None:
-        stmt = (
-            select(RoleModel).where(RoleModel.id == id).options(selectinload(RoleModel.permissions))
-        )
+        stmt = select(Role).where(Role.id == id).options(selectinload(Role.permissions))
         result = await self.db.execute(stmt)
         row = result.scalar_one_or_none()
         if row is None:
@@ -105,7 +99,7 @@ class RoleRepository:
         from ..models import Permission as PermissionModel
         from ..models import role_permissions
 
-        role_stmt = select(RoleModel.id).where(RoleModel.id == id)
+        role_stmt = select(Role.id).where(Role.id == id)
         role_result = await self.db.execute(role_stmt)
         if role_result.scalar_one_or_none() is None:
             raise ResourceNotFoundError("Role", id)
@@ -127,11 +121,11 @@ class RoleRepository:
 
         return await self.get_with_permissions(id)
 
-    def _to_entity(self, model: RoleModel) -> RoleEntity:
+    def _to_entity(self, model: Role) -> RoleEntity:
         return RoleEntity(id=model.id, name=model.name, description=model.description)
 
-    def _from_entity(self, entity: RoleEntity) -> RoleModel:
-        return RoleModel(
+    def _from_entity(self, entity: RoleEntity) -> Role:
+        return Role(
             id=entity.id,
             name=entity.name,
             description=entity.description,

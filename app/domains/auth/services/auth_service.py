@@ -2,7 +2,7 @@ from typing import Any
 
 from app.core.security import JWTService, PasswordSecurity
 
-from ..schemas import CreateUserRequest, UserLoginRequest
+from ..schemas import CreateUserDTO, CreateUserRequest, UserLoginRequest
 from .user_service import UserService
 
 
@@ -14,7 +14,10 @@ class AuthService:
 
     async def register(self, dto: CreateUserRequest) -> dict[str, Any]:
         password_hash = self.passwordSecurity.generate_password_hash(dto.password)
-        new_user = await self.user_service.create_user(dto.email, dto.name, password_hash)
+        create_user_dto = CreateUserDTO(
+            email=dto.email, password_hash=password_hash, username=dto.username
+        )
+        new_user = await self.user_service.create(create_user_dto)
         access_token = self.jwtService.create_access_token(new_user.id, [])
         refresh_token = self.jwtService.create_refresh_token(new_user.id, [])
 
@@ -27,11 +30,13 @@ class AuthService:
         }
 
     async def login(self, dto: UserLoginRequest) -> tuple[str, str]:
-        user = await self.user_service.get_user(email=dto.email)
+        user = await self.user_service.get_by_email(email=dto.email)
         if user is None:
             raise Exception("User not found")
 
         password_hash = user.password_hash
+        if password_hash is None:
+            raise Exception("Password not configured for user")
 
         is_authenticated = self.passwordSecurity.verify_password(dto.password, password_hash)
 

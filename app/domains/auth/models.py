@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres.base import Base
 
-from .enums import AuthProvider, SessionStatus
+from .enums import OAuthProvider, SessionStatus
 
 user_roles = Table(
     "user_roles",
@@ -30,15 +30,20 @@ class User(Base):
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
-    username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    username: Mapped[str] = mapped_column(String, unique=True, nullable=True)
+    name: Mapped[str] = mapped_column(String, nullable=True)
+    password_hash: Mapped[str] = mapped_column(String, nullable=True)
+    oauth_provider: Mapped[OAuthProvider] = mapped_column(
+        SqlEnum(OAuthProvider), nullable=True, default=OAuthProvider.LOCAL
+    )
+    oauth_provider_id: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=True, onupdate=func.now())
+    deleted_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
 
     sessions: Mapped[list["Session"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -99,10 +104,6 @@ class Session(Base):
     )  # Validate with SessionDeviceInfo in service layer
     user_agent: Mapped[str | None] = mapped_column(String, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String, nullable=True)
-    auth_provider: Mapped[AuthProvider] = mapped_column(
-        SqlEnum(AuthProvider), nullable=False, default=AuthProvider.LOCAL
-    )
-    provider_account_id: Mapped[str | None] = mapped_column(String, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
