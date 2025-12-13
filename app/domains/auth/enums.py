@@ -8,6 +8,12 @@ class SessionStatus(Enum):
     REVOKED = "revoked"
 
 
+class DeviceType(Enum):
+    MOBILE = "mobile"
+    TABLET = "tablet"
+    DESKTOP = "desktop"
+
+
 class OAuthProvider(Enum):
     LOCAL = "local"
     GOOGLE = "google"

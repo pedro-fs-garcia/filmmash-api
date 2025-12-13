@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from app.core.dependencies import ResponseFactoryDep
 from app.core.exceptions import AppHTTPException
 from app.db.exceptions import ResourceAlreadyExistsError
-from app.schemas.response import SuccessContent
+from app.schemas.response import GenericSuccessContent
 
 from ..dependencies import RoleServiceDep
 from ..entities import Role as RoleEntity
@@ -21,7 +21,10 @@ post_role_responses: dict[int | str, dict[str, Any]] = {
 
 
 @role_router.post(
-    "/", tags=["Roles"], response_model=SuccessContent[RoleEntity], responses=post_role_responses
+    "/",
+    tags=["Roles"],
+    response_model=GenericSuccessContent[RoleEntity],
+    responses=post_role_responses,
 )
 async def create_role(
     dto: CreateRoleDTO, service: RoleServiceDep, response: ResponseFactoryDep
@@ -42,7 +45,7 @@ async def create_role(
 @role_router.get(
     "/",
     tags=["Roles"],
-    response_model=SuccessContent[list[RoleEntity]],
+    response_model=GenericSuccessContent[list[RoleEntity]],
     responses={
         status.HTTP_200_OK: {"description": "List of all roles"},
     },

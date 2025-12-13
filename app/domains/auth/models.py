@@ -1,8 +1,9 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Table, func
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Table, func
 from sqlalchemy import Enum as SqlEnum
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -94,13 +95,15 @@ class Permission(Base):
 class Session(Base):
     __tablename__ = "sessions"
 
+    __table_args__ = (Index("ix_sessions_user_id_status", "user_id", "status"),)
+
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
-    refresh_token_hash: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    refresh_token_hash: Mapped[str] = mapped_column(String, nullable=False, index=True, unique=True)
     status: Mapped[SessionStatus] = mapped_column(
         SqlEnum(SessionStatus), nullable=False, default=SessionStatus.ACTIVE
     )
     device_info: Mapped[dict[str, str | None]] = mapped_column(
-        JSON, nullable=False
+        JSONB, nullable=False, default=dict
     )  # Validate with SessionDeviceInfo in service layer
     user_agent: Mapped[str | None] = mapped_column(String, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String, nullable=True)

@@ -1,8 +1,9 @@
-from typing import Literal
+from datetime import UTC, datetime
+from uuid import UUID
 
 from pydantic import BaseModel, model_validator
 
-from .enums import OAuthProvider
+from .enums import DeviceType, OAuthProvider, SessionStatus
 
 
 class UserCreatedResponse(BaseModel):
@@ -12,7 +13,12 @@ class UserCreatedResponse(BaseModel):
     token: str
 
 
-class CreateUserRequest(BaseModel):
+class LoginResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+
+
+class RegisterUserRequest(BaseModel):
     email: str
     username: str
     password: str
@@ -24,7 +30,7 @@ class UserLoginRequest(BaseModel):
 
 
 class SessionDeviceInfo(BaseModel):
-    device_type: Literal["desktop", "mobile", "tablet"] | None
+    device_type: DeviceType | None
     os: str | None
     browser: str | None
     app_version: str | None
@@ -106,3 +112,32 @@ class ReplaceUserDTO(CreateUserDTO):
 
 class AddUserRolesDTO(BaseModel):
     role_ids: list[int]
+
+
+class CreateSessionDTO(BaseModel):
+    user_id: UUID
+    refresh_token_hash: str
+    status: SessionStatus
+    expires_at: datetime
+    device_info: SessionDeviceInfo | None = None
+    user_agent: str | None = None
+    ip_address: str | None = None
+    last_used_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_expiration(self) -> "CreateSessionDTO":
+        if self.expires_at <= datetime.now(UTC):
+            raise ValueError("expires_at must be in the future")
+        return self
+
+
+class UpdateSessionDTO(BaseModel):
+    refresh_token_hash: str | None = None
+    status: SessionStatus | None = None
+    expires_at: datetime | None = None
+    last_used_at: datetime | None = None
+
+
+class RefreshSessionDTO(BaseModel):
+    refresh_token_hash: str
+    expires_at: datetime

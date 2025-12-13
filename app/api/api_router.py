@@ -1,12 +1,13 @@
 from typing import Any
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.core.config import get_settings
 from app.core.dependencies import ResponseFactoryDep
-from app.domains.auth import auth_router, permission_router, role_router
+from app.core.logger import get_logger
+from app.domains.auth import auth_router, permission_router, role_router, user_router
 from app.schemas.response import ErrorContent, GenericSuccessContent
 
 api_router = APIRouter()
@@ -30,7 +31,9 @@ v1_responses: dict[int | str, dict[str, Any]] = {
 
 
 @api_router.get("", tags=["api"], responses=v1_responses)
-async def root(response_factory: ResponseFactoryDep) -> JSONResponse:
+async def root(response_factory: ResponseFactoryDep, request: Request) -> JSONResponse:
+    r = request.headers
+    get_logger().info(str(r))
     return response_factory.success(
         data={"status": "API - version 1", "environment": get_settings().ENVIRONMENT},
         status_code=status.HTTP_200_OK,
@@ -40,3 +43,4 @@ async def root(response_factory: ResponseFactoryDep) -> JSONResponse:
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 api_router.include_router(role_router, prefix="/roles", tags=["Roles"])
 api_router.include_router(permission_router, prefix="/permissions", tags=["Permissions"])
+api_router.include_router(user_router, prefix="/users", tags=["Users"])

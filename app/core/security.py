@@ -27,6 +27,10 @@ class PasswordSecurity:
         needs_rehash: bool = self.pwd_context.needs_update(hashed_password)
         return needs_rehash
 
+    def generate_token_hash(self, token: str) -> str:
+        hashed_token: str = self.pwd_context.hash(token)
+        return hashed_token
+
 
 class JWTService:
     def __init__(self) -> None:

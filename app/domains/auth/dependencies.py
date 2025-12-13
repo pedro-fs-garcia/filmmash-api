@@ -2,14 +2,18 @@ from typing import Annotated
 
 from fastapi import Depends
 
+from app.core.dependencies import JWTServiceDep, PasswordSecurityDep
 from app.db.postgres.dependencies import PgSessionDep
-from app.domains.auth.repositories.permission_repository import PermissionRepository
-from app.domains.auth.repositories.user_repository import UserRepository
-from app.domains.auth.services.permission_service import PermissionService
-from app.domains.auth.services.user_service import UserService
+from app.domains.auth.services.auth_service import AuthService
 
+from .repositories.permission_repository import PermissionRepository
 from .repositories.role_repository import RoleRepository
+from .repositories.session_repository import SessionRepository
+from .repositories.user_repository import UserRepository
+from .services.permission_service import PermissionService
 from .services.role_service import RoleService
+from .services.session_service import SessionService
+from .services.user_service import UserService
 
 
 # ============================================================
@@ -25,6 +29,10 @@ def get_permission_repository(db: PgSessionDep) -> PermissionRepository:
 
 def get_user_repository(db: PgSessionDep) -> UserRepository:
     return UserRepository(db)
+
+
+def get_session_repository(db: PgSessionDep) -> SessionRepository:
+    return SessionRepository(db)
 
 
 # ============================================================
@@ -48,6 +56,26 @@ def get_user_service(
     return UserService(user_repo)
 
 
+def get_session_service(
+    session_repo: Annotated[SessionRepository, Depends(get_session_repository)],
+) -> SessionService:
+    return SessionService(session_repo)
+
+
+def get_auth_service(
+    user_service: Annotated[UserService, Depends(get_user_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    jwt_service: JWTServiceDep,
+    password_security: PasswordSecurityDep,
+) -> AuthService:
+    return AuthService(
+        user_service=user_service,
+        session_service=session_service,
+        jwt_service=jwt_service,
+        password_security=password_security,
+    )
+
+
 # ============================================================
 # Type Aliases for Router Use
 # ============================================================
@@ -59,3 +87,8 @@ PermissionRepoDep = Annotated[PermissionRepository, Depends(get_permission_repos
 
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 UserRepositoryDep = Annotated[UserRepository, Depends(get_user_repository)]
+
+SessionServiceDep = Annotated[SessionService, Depends(get_session_service)]
+SessionRepoDep = Annotated[SessionRepository, Depends(get_session_repository)]
+
+AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]

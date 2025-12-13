@@ -8,14 +8,14 @@ from app.core.exceptions import AppHTTPException
 from app.db.exceptions import ResourceAlreadyExistsError, ResourceNotFoundError
 from app.domains.auth.dependencies import UserServiceDep
 from app.domains.auth.schemas import AddUserRolesDTO, CreateUserDTO, ReplaceUserDTO, UpdateUserDTO
-from app.schemas.response import SuccessContent
+from app.schemas.response import GenericSuccessContent
 
 from ..entities import User
 
 user_router = APIRouter()
 
 
-@user_router.post("/", tags=["Users"], response_model=SuccessContent[User])
+@user_router.post("/", tags=["Users"], response_model=GenericSuccessContent[User])
 async def create_user(
     dto: CreateUserDTO, service: UserServiceDep, response: ResponseFactoryDep
 ) -> JSONResponse:
@@ -29,7 +29,7 @@ async def create_user(
         ) from e
 
 
-@user_router.get("/", tags=["Users"], response_model=SuccessContent[list[User]])
+@user_router.get("/", tags=["Users"], response_model=GenericSuccessContent[list[User]])
 async def get_users(service: UserServiceDep, response: ResponseFactoryDep) -> JSONResponse:
     users = await service.get_all()
     return response.success(data=[user.__dict__ for user in users], status_code=status.HTTP_200_OK)

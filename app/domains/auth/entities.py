@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
+from app.domains.auth.schemas import SessionDeviceInfo
+
 from .enums import OAuthProvider, SessionStatus
 
 
@@ -41,13 +43,11 @@ class Session:
     user_id: UUID
     refresh_token_hash: str
     status: SessionStatus
-    device_info: dict[str, str | None]
-    auth_provider: OAuthProvider
     expires_at: datetime
     created_at: datetime
+    device_info: SessionDeviceInfo | None = None
     user_agent: str | None = None
     ip_address: str | None = None
-    provider_account_id: str | None = None
     last_used_at: datetime | None = None
 
     def is_expired(self) -> bool:
