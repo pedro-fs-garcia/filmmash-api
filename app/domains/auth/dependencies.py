@@ -4,12 +4,13 @@ from fastapi import Depends
 
 from app.core.dependencies import JWTServiceDep, PasswordSecurityDep
 from app.db.postgres.dependencies import PgSessionDep
-from app.domains.auth.services.auth_service import AuthService
 
+from .entities import Session, User
 from .repositories.permission_repository import PermissionRepository
 from .repositories.role_repository import RoleRepository
 from .repositories.session_repository import SessionRepository
 from .repositories.user_repository import UserRepository
+from .services.auth_service import AuthService
 from .services.permission_service import PermissionService
 from .services.role_service import RoleService
 from .services.session_service import SessionService
@@ -57,9 +58,11 @@ def get_user_service(
 
 
 def get_session_service(
+    db: PgSessionDep,
     session_repo: Annotated[SessionRepository, Depends(get_session_repository)],
+    jwt_service: JWTServiceDep,
 ) -> SessionService:
-    return SessionService(session_repo)
+    return SessionService(db, session_repo, jwt_service)
 
 
 def get_auth_service(
@@ -74,6 +77,13 @@ def get_auth_service(
         jwt_service=jwt_service,
         password_security=password_security,
     )
+
+
+async def get_current_user_session(
+    service: Annotated[AuthService, Depends(get_auth_service)],
+    access_token: str,
+) -> tuple[User, Session]:
+    return await service.load_current_user_session(access_token)
 
 
 # ============================================================
@@ -92,3 +102,5 @@ SessionServiceDep = Annotated[SessionService, Depends(get_session_service)]
 SessionRepoDep = Annotated[SessionRepository, Depends(get_session_repository)]
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
+CurrentUserSessionDep = Annotated[tuple[User, Session], Depends(get_current_user_session)]

@@ -7,6 +7,7 @@ from fastapi.responses import Response
 
 from app.core.config import get_settings
 
+from .http.device import get_device_info
 from .metrics import add_metrics_middleware
 
 settings = get_settings()
@@ -38,3 +39,10 @@ def _add_http_middlewares(app: FastAPI) -> None:
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         return response
+
+    @app.middleware("http")
+    async def get_device_info_middleware(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        request.state.device_info = get_device_info(request).model_dump(mode="json")
+        return await call_next(request)

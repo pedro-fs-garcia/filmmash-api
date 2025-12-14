@@ -1,23 +1,77 @@
 from datetime import datetime, timedelta
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import get_settings
+from app.core.security import JWTService
 from app.domains.auth.enums import SessionStatus
 from app.domains.auth.exceptions import SessionExpiredError, SessionNotFoundError
 
 from ..entities import Session
+from ..models import Session as SessionModel
 from ..repositories.session_repository import SessionRepository
-from ..schemas import CreateSessionDTO, UpdateSessionDTO
+from ..schemas import CreateSessionDTO, SessionDeviceInfo, UpdateSessionDTO
 
 
 class SessionService:
-    def __init__(self, session_repo: SessionRepository):
+    def __init__(
+        self,
+        db: AsyncSession,
+        session_repo: SessionRepository,
+        jwt_service: JWTService,
+    ) -> None:
+        self.db = db
+        self.session_repo = session_repo
+        self.jwt_service = jwt_service
         self.repo = session_repo
+        self.max_active_sessions = 5
 
-    async def create(self, dto: CreateSessionDTO) -> Session:
-        return await self.repo.create(dto)
+    async def init_session(
+        self, user_id: UUID, device_info: SessionDeviceInfo | None = None
+    ) -> tuple[str, str]:
+        session_dto = CreateSessionDTO(
+            user_id=user_id,
+            status=SessionStatus.ACTIVE,
+            expires_at=datetime.now() + get_settings().session_default_timedelta,
+            device_info=device_info,
+            last_used_at=datetime.now(),
+        )
+        session, refresh_token = await self.create(session_dto)
+        access_token = self.jwt_service.create_access_token(user_id, session.id)
+
+        return access_token, refresh_token
+
+    async def create(self, dto: CreateSessionDTO) -> tuple[Session, str]:
+        async with self.db.begin():
+            await self.repo.free_active_sessions_limit(dto.user_id, self.max_active_sessions)
+            session_model = await self.repo.add(SessionModel(**dto.model_dump(exclude_none=True)))
+            refresh_token = self.jwt_service.create_refresh_token(
+                session_model.user_id, session_model.id
+            )
+            refresh_token_hash = self.jwt_service.hash_token(refresh_token)
+            session_model.refresh_token_hash = refresh_token_hash
+            await self.db.flush()
+
+        device_info = SessionDeviceInfo.model_validate(session_model.device_info)
+        session_entity = Session(
+            id=session_model.id,
+            user_id=session_model.user_id,
+            refresh_token_hash=session_model.refresh_token_hash,
+            status=session_model.status,
+            expires_at=session_model.expires_at,
+            created_at=session_model.created_at,
+            device_info=device_info,
+            last_used_at=session_model.last_used_at,
+        )
+
+        return session_entity, refresh_token
 
     async def get_all(self) -> list[Session]:
         return await self.repo.get_all()
+
+    async def get_by_id(self, sesion_id: UUID) -> Session | None:
+        return await self.repo.get_by_id(sesion_id)
 
     async def get_by_refresh_token_hash(self, refresh_token_hash: str) -> Session | None:
         return await self.repo.get_by_refresh_token_hash(refresh_token_hash)
@@ -39,14 +93,13 @@ class SessionService:
         return await self.repo.update(session_id, UpdateSessionDTO(status=SessionStatus.EXPIRED))
 
     async def refresh(
-        self, session: Session, refresh_token_hash: str, time_delta: timedelta
+        self, session: Session, new_refresh_token_hash: str, time_delta: timedelta
     ) -> Session:
         if session.expires_at < datetime.now():
             raise SessionExpiredError("Session cannot be refreshed after expired.")
 
         update_dto = UpdateSessionDTO(
-            refresh_token_hash=refresh_token_hash,
-            expires_at=datetime.now() + time_delta,
+            refresh_token_hash=new_refresh_token_hash,
             status=SessionStatus.ACTIVE,
             last_used_at=datetime.now(),
         )
@@ -55,16 +108,6 @@ class SessionService:
             raise SessionNotFoundError("Session could not be refreshed.")
         return updated_session
 
-    # async def refresh_access_token(self, refresh_token: str) -> str:
-
-    #     session = await self.repo.get_by_refresh_token_hash(refresh_token)
-    #     if session is None:
-    #         raise SessionNotFoundException()
-
-    #     if not session.is_active():
-    #         raise SessionExpiredException()
-
-    #     session.mark_used()
-    #     await self.repo.save(session)
-
-    #     return self.jwt_service.create_access_token(session.user_id)
+    async def revoke_all_user_sessions(self, user_id: UUID) -> None:
+        # TODO Implement
+        ...

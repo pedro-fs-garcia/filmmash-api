@@ -95,7 +95,7 @@ class Permission(Base):
 class Session(Base):
     __tablename__ = "sessions"
 
-    __table_args__ = (Index("ix_sessions_user_id_status", "user_id", "status"),)
+    __table_args__ = (Index("idx_sessions_user_id_status", "user_id", "status"),)
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     refresh_token_hash: Mapped[str] = mapped_column(String, nullable=False, index=True, unique=True)
@@ -105,8 +105,6 @@ class Session(Base):
     device_info: Mapped[dict[str, str | None]] = mapped_column(
         JSONB, nullable=False, default=dict
     )  # Validate with SessionDeviceInfo in service layer
-    user_agent: Mapped[str | None] = mapped_column(String, nullable=True)
-    ip_address: Mapped[str | None] = mapped_column(String, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -114,7 +112,7 @@ class Session(Base):
     )
 
     user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
     user: Mapped["User"] = relationship(back_populates="sessions")
 

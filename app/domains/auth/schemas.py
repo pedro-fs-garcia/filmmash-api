@@ -9,8 +9,18 @@ from .enums import DeviceType, OAuthProvider, SessionStatus
 class UserCreatedResponse(BaseModel):
     id: str
     email: str
-    name: str
-    token: str
+    username: str
+    access_token: str
+    refresh_token: str
+
+
+class RefreshSessionRequest(BaseModel):
+    refresh_token: str
+
+
+class RefreshSessionResponse(BaseModel):
+    access_token: str
+    refresh_token: str
 
 
 class LoginResponse(BaseModel):
@@ -30,10 +40,16 @@ class UserLoginRequest(BaseModel):
 
 
 class SessionDeviceInfo(BaseModel):
-    device_type: DeviceType | None
-    os: str | None
-    browser: str | None
-    app_version: str | None
+    user_agent: str | None = None
+    ip_address: str | None = None
+    device_type: DeviceType | None = None
+    os: str | None = None
+    browser: str | None = None
+    app_version: str | None = None
+
+    def fingerprint(self) -> str:
+        f_values = [self.device_type.value if self.device_type else None, self.os, self.browser]
+        return " | ".join([str(v) for v in f_values if v is not None])
 
 
 class CreateRoleDTO(BaseModel):
@@ -116,12 +132,10 @@ class AddUserRolesDTO(BaseModel):
 
 class CreateSessionDTO(BaseModel):
     user_id: UUID
-    refresh_token_hash: str
-    status: SessionStatus
+    refresh_token_hash: str | None = None
+    status: SessionStatus | None = None
     expires_at: datetime
     device_info: SessionDeviceInfo | None = None
-    user_agent: str | None = None
-    ip_address: str | None = None
     last_used_at: datetime | None = None
 
     @model_validator(mode="after")
@@ -136,6 +150,9 @@ class UpdateSessionDTO(BaseModel):
     status: SessionStatus | None = None
     expires_at: datetime | None = None
     last_used_at: datetime | None = None
+    device_info: SessionDeviceInfo | None = None
+    user_agent: str | None = None
+    ip_address: str | None = None
 
 
 class RefreshSessionDTO(BaseModel):

@@ -1,12 +1,21 @@
+from datetime import timedelta
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Filmmash Backend"
+    PROJECT_NAME: str = "Filmmash API"
     PROJECT_DESCRIPTION: str = "Backend e API GATEWAY para o projeto FilmMash"
     PROJECT_VERSION: str = "0.1.0"
+
+    @property
+    def project_identifier(self) -> str:
+        return self.PROJECT_NAME.lower().replace(" ", "-")
+
+    @property
+    def project_client_identifier(self) -> str:
+        return self.project_identifier + "-client"
 
     ENVIRONMENT: str = "development"
 
@@ -44,6 +53,19 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 60
+    SESSION_EXPIRE_DAYS: int = 180
+
+    @property
+    def access_token_timedelta(self) -> timedelta:
+        return timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    @property
+    def refresh_token_timedelta(self) -> timedelta:
+        return timedelta(days=self.REFRESH_TOKEN_EXPIRE_DAYS)
+
+    @property
+    def session_default_timedelta(self) -> timedelta:
+        return timedelta(days=self.SESSION_EXPIRE_DAYS)
 
     model_config = SettingsConfigDict(extra="allow", env_file=".env", env_file_encoding="utf-8")
 

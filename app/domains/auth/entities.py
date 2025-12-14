@@ -46,9 +46,10 @@ class Session:
     expires_at: datetime
     created_at: datetime
     device_info: SessionDeviceInfo | None = None
-    user_agent: str | None = None
-    ip_address: str | None = None
     last_used_at: datetime | None = None
+
+    def __repr__(self) -> str:
+        return f"<Session {self.id}>"
 
     def is_expired(self) -> bool:
         """Check if session has expired."""
@@ -72,6 +73,13 @@ class Session:
     def revoke(self) -> None:
         """Revoke this session."""
         self.status = SessionStatus.REVOKED
+
+    def matches_device_fingerprint(self, device_info: SessionDeviceInfo | None) -> bool:
+        if self.device_info is None and device_info is None:
+            return True
+        if self.device_info is None or device_info is None:
+            return False
+        return self.device_info.fingerprint() == device_info.fingerprint()
 
 
 @dataclass

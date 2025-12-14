@@ -18,7 +18,9 @@ class UserService:
     async def get_all(self) -> list[User]:
         return await self.repo.get_all()
 
-    async def get_by_id(self, id: UUID) -> User | None:
+    async def get_by_id(self, id: UUID, with_roles: bool = False) -> User | None:
+        if with_roles:
+            return await self.repo.get_with_roles(id)
         return await self.repo.get_by_id(id)
 
     async def get_by_email(self, email: str) -> User | None:
