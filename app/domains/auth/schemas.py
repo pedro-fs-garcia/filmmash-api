@@ -1,4 +1,5 @@
-from datetime import UTC, datetime
+import re
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, model_validator
@@ -54,17 +55,34 @@ class SessionDeviceInfo(BaseModel):
 
 class CreateRoleDTO(BaseModel):
     name: str
-    description: str
+    description: str | None = None
+
+    @model_validator(mode="after")
+    def validate_name(self) -> "CreateRoleDTO":
+        role_name_re = re.compile(r"^[A-Za-z_]{3,}$")
+        if not role_name_re.match(self.name):
+            raise ValueError(
+                "Role name can have only letters and _ and cannot have less than 3 characters."
+            )
+        return self
 
 
-class ReplaceRoleDTO(BaseModel):
-    name: str
-    description: str
+class ReplaceRoleDTO(CreateRoleDTO):
+    pass
 
 
 class UpdateRoleDTO(BaseModel):
     name: str | None = None
     description: str | None = None
+
+    @model_validator(mode="after")
+    def validate_name(self) -> "UpdateRoleDTO":
+        role_name_re = re.compile(r"^[A-Za-z_]{3,}$")
+        if self.name and not role_name_re.match(self.name):
+            raise ValueError(
+                "Role name can have only letters and _ and cannot have less than 3 characters."
+            )
+        return self
 
 
 class AddRolePermissionsDTO(BaseModel):
@@ -140,7 +158,7 @@ class CreateSessionDTO(BaseModel):
 
     @model_validator(mode="after")
     def validate_expiration(self) -> "CreateSessionDTO":
-        if self.expires_at <= datetime.now(UTC):
+        if self.expires_at <= datetime.now():
             raise ValueError("expires_at must be in the future")
         return self
 

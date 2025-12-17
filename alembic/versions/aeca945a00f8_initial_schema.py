@@ -19,6 +19,10 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    # Create uuid-ossp extension for UUID generation
+    op.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";')
+
+    # Create function for automatic updated_at timestamps
     op.execute(
         """
         CREATE FUNCTION fn_set_updated_at()
@@ -33,6 +37,7 @@ def upgrade() -> None:
         """
     )
 
+    # Create roles table
     op.execute(
         """
         CREATE TABLE roles (
@@ -41,23 +46,43 @@ def upgrade() -> None:
             description VARCHAR(255),
             created_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
+        """
+    )
 
+    # Create permissions table
+    op.execute(
+        """
         CREATE TABLE permissions (
             id SERIAL PRIMARY KEY,
             name VARCHAR(50) NOT NULL UNIQUE,
             description VARCHAR(255),
             created_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
+        """
+    )
 
+    # Create role_permissions junction table
+    op.execute(
+        """
         CREATE TABLE role_permissions (
             role_id INTEGER REFERENCES roles(id),
             permission_id INTEGER REFERENCES permissions(id),
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
             PRIMARY KEY (role_id, permission_id)
         );
+        """
+    )
 
-
+    # Create oauth_provider enum type
+    op.execute(
+        """
         CREATE TYPE oauth_provider AS ENUM ('local', 'google', 'microsoft');
+        """
+    )
+
+    # Create users table
+    op.execute(
+        """
         CREATE TABLE users (
             id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
             email VARCHAR(255) NOT NULL UNIQUE,
@@ -72,24 +97,46 @@ def upgrade() -> None:
             updated_at TIMESTAMP,
             deleted_at TIMESTAMP
         );
-        CREATE INDEX idx_users_email ON users (email);
-        CREATE INDEX idx_users_active ON users (is_active);
-        CREATE INDEX idx_users_verified ON users (is_verified);
+        """
+    )
 
+    # Create indexes on users table
+    op.execute("CREATE INDEX idx_users_email ON users (email);")
+    op.execute("CREATE INDEX idx_users_active ON users (is_active);")
+    op.execute("CREATE INDEX idx_users_verified ON users (is_verified);")
+
+    # Create trigger for users updated_at
+    op.execute(
+        """
         CREATE TRIGGER trg_users_set_updated_at
         BEFORE UPDATE ON users
         FOR EACH ROW
         EXECUTE FUNCTION fn_set_updated_at();
+        """
+    )
 
+    # Create user_roles junction table
+    op.execute(
+        """
         CREATE TABLE user_roles (
             user_id uuid REFERENCES users(id),
             role_id INTEGER REFERENCES roles(id),
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
             PRIMARY KEY (user_id, role_id)
         );
+        """
+    )
 
-
+    # Create session_status enum type
+    op.execute(
+        """
         CREATE TYPE session_status AS ENUM ('active', 'expired', 'invalid', 'revoked');
+        """
+    )
+
+    # Create sessions table
+    op.execute(
+        """
         CREATE TABLE sessions (
             id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
             refresh_token_hash VARCHAR(255) NOT NULL UNIQUE,
@@ -102,14 +149,26 @@ def upgrade() -> None:
             revoked_at TIMESTAMP,
             user_id uuid REFERENCES users(id) NOT NULL
         );
-        CREATE INDEX idx_sessions_user_id_status ON sessions (user_id, status);
-        CREATE INDEX idx_sessions_refresh_token_hash ON sessions (refresh_token_hash);
+        """
+    )
 
+    # Create indexes on sessions table
+    op.execute("CREATE INDEX idx_sessions_user_id_status ON sessions (user_id, status);")
+    op.execute("CREATE INDEX idx_sessions_refresh_token_hash ON sessions (refresh_token_hash);")
+
+    # Create trigger for sessions updated_at
+    op.execute(
+        """
         CREATE TRIGGER trg_session_set_updated_at
         BEFORE UPDATE ON sessions
         FOR EACH ROW
         EXECUTE FUNCTION fn_set_updated_at();
+        """
+    )
 
+    # Create function for automatic revoked_at timestamp
+    op.execute(
+        """
         CREATE OR REPLACE FUNCTION set_session_revoked_at()
         RETURNS TRIGGER AS $$
         BEGIN
@@ -119,7 +178,12 @@ def upgrade() -> None:
             RETURN NEW;
         END;
         $$ LANGUAGE plpgsql;
+        """
+    )
 
+    # Create trigger for sessions revoked_at
+    op.execute(
+        """
         CREATE TRIGGER trg_session_set_revoked_at
         BEFORE UPDATE ON sessions
         FOR EACH ROW
@@ -148,3 +212,4 @@ def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS permissions CASCADE;")
     op.execute("DROP TABLE IF EXISTS roles CASCADE;")
     op.execute("DROP FUNCTION IF EXISTS fn_set_updated_at;")
+    op.execute('DROP EXTENSION IF EXISTS "uuid-ossp";')

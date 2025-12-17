@@ -33,11 +33,23 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int = 5432
 
     @property
+    def postgres_db_test(self) -> str:
+        return f"{self.POSTGRES_DB}_test"
+
+    @property
     def database_url(self) -> str:
         return (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:"
             f"{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:"
             f"{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+
+    @property
+    def test_database_url(self) -> str:
+        return (
+            f"postgresql+asyncpg://{self.POSTGRES_USER}:"
+            f"{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:"
+            f"{self.POSTGRES_PORT}/{self.postgres_db_test}"
         )
 
     @property

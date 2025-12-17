@@ -3,7 +3,7 @@ from logging.config import fileConfig
 
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from alembic import context
+from alembic import context  # type: ignore[attr-defined]
 from app.core.config import get_settings
 from app.db.postgres.base import Base
 
@@ -15,7 +15,10 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    return get_settings().database_url
+    settings = get_settings()
+    if settings.ENVIRONMENT == "test":
+        return settings.test_database_url
+    return settings.database_url
 
 
 def run_migrations_offline() -> None:

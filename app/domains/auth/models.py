@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.postgres.base import Base
 
-from .enums import OAuthProvider, SessionStatus
+from .enums import OAuthProvider, SessionStatus, enum_values
 
 user_roles = Table(
     "user_roles",
@@ -36,8 +36,15 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=True)
     name: Mapped[str] = mapped_column(String(50), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=True)
-    oauth_provider: Mapped[OAuthProvider] = mapped_column(
-        SqlEnum(OAuthProvider), nullable=True, default=OAuthProvider.LOCAL
+    oauth_provider: Mapped[OAuthProvider | None] = mapped_column(
+        SqlEnum(
+            OAuthProvider,
+            name="oauth_provider",
+            native_enum=True,
+            create_constraint=False,
+            values_callable=enum_values,
+        ),
+        nullable=True,
     )
     oauth_provider_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
@@ -62,7 +69,7 @@ class Role(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
-    description: Mapped[str] = mapped_column(String(255), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
@@ -81,7 +88,7 @@ class Permission(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-    description: Mapped[str] = mapped_column(String(255), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
@@ -104,7 +111,15 @@ class Session(Base):
         String(255), nullable=False, index=True, unique=True
     )
     status: Mapped[SessionStatus] = mapped_column(
-        SqlEnum(SessionStatus), nullable=False, default=SessionStatus.ACTIVE
+        SqlEnum(
+            SessionStatus,
+            name="session_status",
+            native_enum=True,
+            create_constraint=False,
+            values_callable=enum_values,
+        ),
+        nullable=False,
+        default=SessionStatus.ACTIVE,
     )
     device_info: Mapped[dict[str, str | None]] = mapped_column(
         JSONB, nullable=False, default=dict

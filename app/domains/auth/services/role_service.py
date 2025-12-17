@@ -8,8 +8,6 @@ class RoleService:
         self.repo = role_repo
 
     async def create(self, dto: CreateRoleDTO) -> Role:
-        dto.name = dto.name.strip().lower().replace(" ", "_")
-        dto.description = dto.description.strip()
         new_role = await self.repo.create(dto)
         return new_role
 

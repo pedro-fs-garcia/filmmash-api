@@ -28,8 +28,8 @@ async def test_metrics_routes(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_api_v1_check(client: AsyncClient) -> None:
-    response = await client.get("/api/v1")
+async def test_api_check(client: AsyncClient) -> None:
+    response = await client.get("/api")
     assert response.status_code == 200
 
 

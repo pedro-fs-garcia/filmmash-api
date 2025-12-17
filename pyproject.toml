@@ -19,6 +19,7 @@ dependencies = [
     "psutil",
     "pytest",
     "pytest-asyncio",
+    "pytest-env",
     "passlib[argon2]",
     "PyJWT"
 ]
@@ -101,7 +102,7 @@ plugins = ["pydantic.mypy"]
 disable_error_code = ["misc"]
 
 [[tool.mypy.overrides]]
-module = ["jwt.*", "passlib.*"]
+module = ["jwt.*", "passlib.*", "alembic.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
