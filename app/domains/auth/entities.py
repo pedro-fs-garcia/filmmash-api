@@ -2,9 +2,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
-from app.domains.auth.schemas import SessionDeviceInfo
-
 from .enums import OAuthProvider, SessionStatus
+from .schemas import SessionDeviceInfo
 
 
 @dataclass

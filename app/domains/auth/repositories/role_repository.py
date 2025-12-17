@@ -6,11 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.exceptions import ResourceAlreadyExistsError, ResourceNotFoundError
-from app.domains.auth.schemas import CreateRoleDTO, ReplaceRoleDTO, UpdateRoleDTO
 
 from ..entities import Permission, RoleWithPermissions
 from ..entities import Role as RoleEntity
 from ..models import Role as Role
+from ..schemas import CreateRoleDTO, ReplaceRoleDTO, UpdateRoleDTO
 
 
 class RoleRepository:

@@ -7,10 +7,10 @@ from app.core.dependencies import ResponseFactoryDep
 from app.core.exceptions import AppHTTPException
 from app.db.exceptions import ResourceAlreadyExistsError, ResourceNotFoundError
 from app.domains.auth.dependencies import UserServiceDep
-from app.domains.auth.schemas import AddUserRolesDTO, CreateUserDTO, ReplaceUserDTO, UpdateUserDTO
 from app.schemas.response import GenericSuccessContent
 
 from ..entities import User
+from ..schemas import AddUserRolesDTO, CreateUserDTO, ReplaceUserDTO, UpdateUserDTO
 
 user_router = APIRouter()
 

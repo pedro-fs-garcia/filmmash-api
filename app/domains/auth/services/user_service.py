@@ -3,9 +3,9 @@ from uuid import UUID
 from app.db.exceptions import ResourceNotFoundError
 from app.domains.auth.exceptions import UserCannotLoseLoginMethodError
 from app.domains.auth.repositories.user_repository import UserRepository
-from app.domains.auth.schemas import CreateUserDTO, ReplaceUserDTO, UpdateUserDTO
 
 from ..entities import User, UserWithRoles
+from ..schemas import CreateUserDTO, ReplaceUserDTO, UpdateUserDTO
 
 
 class UserService:
