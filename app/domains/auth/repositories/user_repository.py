@@ -1,15 +1,15 @@
 from uuid import UUID
 
-from sqlalchemy import delete, func, insert, select, update
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy import delete, func, insert, or_, select, update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.exceptions import ResourceAlreadyExistsError
+from app.core.decorators import require_dto
 
 from ..entities import Role as RoleEntity
 from ..entities import User as UserEntity
-from ..entities import UserWithRoles
+from ..entities import UserRole, UserWithRoles
 from ..models import Role as RoleModel
 from ..models import User as UserModel
 from ..models import user_roles
@@ -20,6 +20,7 @@ class UserRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    @require_dto(CreateUserDTO)
     async def create(self, dto: CreateUserDTO) -> UserEntity:
         insert_values = dto.model_dump(exclude_none=True)
         stmt = insert(UserModel).values(**insert_values).returning(UserModel)
@@ -28,12 +29,9 @@ class UserRepository:
             row = res.scalar_one()
             await self.db.commit()
             return self._to_entity(row)
-        except IntegrityError as e:
+        except SQLAlchemyError:
             await self.db.rollback()
-            raise ResourceAlreadyExistsError("User", "email or username") from e
-        except Exception as e:
-            await self.db.rollback()
-            raise RuntimeError("Failed to create user") from e
+            raise
 
     async def get_all(self) -> list[UserEntity]:
         result = await self.db.execute(select(UserModel))
@@ -62,15 +60,29 @@ class UserRepository:
         rows = res.scalars().all()
         return [self._to_entity(row) for row in rows]
 
+    @require_dto(UpdateUserDTO, ReplaceUserDTO)
     async def update(self, id: UUID, dto: UpdateUserDTO | ReplaceUserDTO) -> UserEntity | None:
-        update_values = dto.model_dump(exclude_none=True)
+        update_values = None
+        if isinstance(dto, ReplaceUserDTO):
+            update_values = dto.model_dump(exclude_none=False)
+        else:
+            update_values = dto.model_dump(exclude_none=True)
+
+        distinct_conditions = [
+            getattr(UserModel, field).is_distinct_from(value)
+            for field, value in update_values.items()
+        ]
         stmt = (
-            update(UserModel).where(UserModel.id == id).values(**update_values).returning(UserModel)
+            update(UserModel)
+            .where(UserModel.id == id, or_(*distinct_conditions))
+            .values(**update_values)
+            .returning(UserModel)
         )
         res = await self.db.execute(stmt)
         row = res.scalar_one_or_none()
         if row is None:
-            return None
+            existing = await self.get_by_id(id)
+            return existing
         await self.db.commit()
         return self._to_entity(row)
 
@@ -97,8 +109,9 @@ class UserRepository:
             if row is None:
                 return None
             return self._to_entity(row)
-        except SQLAlchemyError as e:
-            raise RuntimeError(f"Failed to hard delete User with id = {id}.") from e
+        except SQLAlchemyError:
+            await self.db.rollback()
+            raise
 
     async def get_with_roles(self, id: UUID) -> UserWithRoles | None:
         stmt = select(UserModel).where(UserModel.id == id).options(selectinload(UserModel.roles))
@@ -123,6 +136,9 @@ class UserRepository:
     async def add_roles(
         self, id: UUID, role_ids: list[int]
     ) -> tuple[UserWithRoles | None, set[int] | None]:
+        if len(role_ids) == 0:
+            return (None, None)
+
         user = await self.get_by_id(id)
         if user is None:
             return (None, None)
@@ -146,6 +162,28 @@ class UserRepository:
 
         updated_user = await self.get_with_roles(id)
         return (updated_user, None)
+
+    async def remove_roles(self, id: UUID, role_ids: list[int]) -> list[UserRole]:
+        stmt = (
+            delete(user_roles)
+            .where(
+                user_roles.c.user_id == id,
+                user_roles.c.role_id.in_(role_ids),
+            )
+            .returning(user_roles)
+        )
+        try:
+            result = await self.db.execute(stmt)
+            rows = result.mappings().all()
+            await self.db.commit()
+            return (
+                [UserRole(role_id=row.role_id, user_id=row.user_id) for row in rows]
+                if len(rows) > 0
+                else []
+            )
+        except SQLAlchemyError:
+            await self.db.rollback()
+            raise
 
     def _to_entity(self, model: UserModel) -> UserEntity:
         return UserEntity(

@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.decorators import require_dto
-from app.db.exceptions import ResourceAlreadyExistsError, ResourceNotFoundError
 
 from ..entities import Permission as PermissionEntity
 from ..entities import PermissionWithRoles, Role, RolePermission
@@ -26,12 +25,12 @@ class PermissionRepository:
             row = result.scalar_one()
             await self.db.commit()
             return self._to_entity(row)
-        except IntegrityError as e:
+        except IntegrityError:
             await self.db.rollback()
-            raise ResourceAlreadyExistsError("Permission", dto.name) from e
-        except Exception as e:
+            raise
+        except Exception:
             await self.db.rollback()
-            raise RuntimeError("Failed to create permission") from e
+            raise
 
     async def get_all(self) -> list[PermissionEntity]:
         stmt = select(PermissionModel)
@@ -61,7 +60,7 @@ class PermissionRepository:
         else:
             update_values = dto.model_dump(exclude_none=True)
         if not update_values:
-            raise ValueError("No fields provided for update")
+            return None
 
         distinct_conditions = [
             getattr(PermissionModel, field).is_distinct_from(value)
@@ -110,7 +109,7 @@ class PermissionRepository:
 
     async def add_to_roles(self, id: int, role_ids: list[int]) -> PermissionWithRoles | None:
         if len(role_ids) == 0:
-            raise ValueError("No permissions provided")
+            return None
 
         from ..models import Role as Role
         from ..models import role_permissions
@@ -118,13 +117,13 @@ class PermissionRepository:
         permission_stmt = select(PermissionModel.id).where(PermissionModel.id == id)
         permission_res = await self.db.execute(permission_stmt)
         if permission_res.scalar_one_or_none() is None:
-            raise ResourceNotFoundError("Permission", id)
+            return None
 
         stmt = select(func.count(Role.id)).where(Role.id.in_(role_ids))
         count = (await self.db.execute(stmt)).scalar_one()
 
         if count != len(set(role_ids)):
-            raise ResourceNotFoundError("Role", "One or more IDs")
+            return None
 
         from sqlalchemy.dialects.postgresql import insert as pg_insert
 

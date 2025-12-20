@@ -90,7 +90,7 @@ def upgrade() -> None:
             name VARCHAR(50),
             password_hash VARCHAR(255),
             oauth_provider oauth_provider,
-            oauth_provider_id VARCHAR(255),
+            oauth_provider_id VARCHAR(255) UNIQUE,
             is_active BOOLEAN NOT NULL DEFAULT TRUE,
             is_verified BOOLEAN NOT NULL DEFAULT FALSE,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),

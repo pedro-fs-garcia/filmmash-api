@@ -46,7 +46,7 @@ class User(Base):
         ),
         nullable=True,
     )
-    oauth_provider_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    oauth_provider_id: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(

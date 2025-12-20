@@ -1,8 +1,8 @@
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.exceptions import ResourceAlreadyExistsError, ResourceNotFoundError
 from app.domains.auth.models import Permission as PermissionModel
 from app.domains.auth.repositories.role_repository import RoleRepository
 from app.domains.auth.schemas import CreateRoleDTO, ReplaceRoleDTO, UpdateRoleDTO
@@ -81,12 +81,12 @@ class TestRolesRepository:
         self, role_repo: RoleRepository
     ) -> None:
         await role_repo.create(self.create_dto)
-        with pytest.raises(ResourceAlreadyExistsError):
+        with pytest.raises(SQLAlchemyError):
             await role_repo.create(self.create_dto)
 
     @pytest.mark.asyncio
     async def test_create_role_with_long_name_should_fail(self, role_repo: RoleRepository) -> None:
-        with pytest.raises(RuntimeError):
+        with pytest.raises(SQLAlchemyError):
             dto = CreateRoleDTO(name="a" * 31)
             await role_repo.create(dto)
 
@@ -94,7 +94,7 @@ class TestRolesRepository:
     async def test_create_role_with_long_description_should_fail(
         self, role_repo: RoleRepository
     ) -> None:
-        with pytest.raises(RuntimeError):
+        with pytest.raises(SQLAlchemyError):
             dto = CreateRoleDTO(name="test_role", description="a" * 256)
             await role_repo.create(dto)
 
@@ -187,23 +187,23 @@ class TestRolesRepository:
         self, role_repo: RoleRepository
     ) -> None:
         role = await role_repo.create(self.create_dto)
-        with pytest.raises(ValueError):
-            await role_repo.add_permissions(role.id, [])
+        res = await role_repo.add_permissions(role.id, [])
+        assert res is None
 
     @pytest.mark.asyncio
     async def test_add_permissions_to_nonexistent_role_raises(
         self, role_repo: RoleRepository
     ) -> None:
-        with pytest.raises(ResourceNotFoundError):
-            await role_repo.add_permissions(9999, [1, 2])
+        res = await role_repo.add_permissions(9999, [1, 2])
+        assert res is None
 
     @pytest.mark.asyncio
     async def test_add_permissions_nonexistent_permissions_raises(
         self, role_repo: RoleRepository
     ) -> None:
         role = await role_repo.create(self.create_dto)
-        with pytest.raises(ResourceNotFoundError):
-            await role_repo.add_permissions(role.id, [123, 456])
+        res = await role_repo.add_permissions(role.id, [123, 456])
+        assert res is None
 
     @pytest.mark.asyncio
     async def test_add_permissions_success(

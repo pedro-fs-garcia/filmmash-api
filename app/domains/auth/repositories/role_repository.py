@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.decorators import require_dto
-from app.db.exceptions import ResourceAlreadyExistsError, ResourceNotFoundError
 
 from ..entities import Permission, RolePermission, RoleWithPermissions
 from ..entities import Role as RoleEntity
@@ -26,12 +25,12 @@ class RoleRepository:
             row = result.scalar_one()
             await self.db.commit()
             return self._to_entity(row)
-        except IntegrityError as e:
+        except IntegrityError:
             await self.db.rollback()
-            raise ResourceAlreadyExistsError("Role", dto.name) from e
-        except Exception as e:
+            raise
+        except Exception:
             await self.db.rollback()
-            raise RuntimeError("Failed to create role") from e
+            raise
 
     async def get_all(self) -> list[RoleEntity]:
         stmt = select(Role)
@@ -64,7 +63,7 @@ class RoleRepository:
             update_values = data.model_dump(exclude_none=True)
 
         if not update_values:
-            raise ValueError("No fields provided for update")
+            return None
 
         distinct_conditions = [
             getattr(Role, field).is_distinct_from(value) for field, value in update_values.items()
@@ -89,8 +88,8 @@ class RoleRepository:
             result = await self.db.execute(stmt)
             await self.db.commit()
             row = result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            raise RuntimeError(f"Failed to delete role with id={id}") from e
+        except SQLAlchemyError:
+            raise
         if row is None:
             return None
         return self._to_entity(row)
@@ -115,12 +114,12 @@ class RoleRepository:
         from ..models import role_permissions
 
         if len(permission_ids) == 0:
-            raise ValueError("No permissions provided")
+            return None
 
         role_stmt = select(Role.id).where(Role.id == id)
         role_result = await self.db.execute(role_stmt)
         if role_result.scalar_one_or_none() is None:
-            raise ResourceNotFoundError("Role", id)
+            return None
 
         stmt = select(PermissionModel.id).where(PermissionModel.id.in_(permission_ids))
         result = await self.db.execute(stmt)
@@ -128,7 +127,7 @@ class RoleRepository:
 
         missing_ids = set(permission_ids) - found_ids
         if missing_ids:
-            raise ResourceNotFoundError("Permission", str(missing_ids))
+            return None
 
         from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -160,9 +159,9 @@ class RoleRepository:
                 if len(rows) > 0
                 else []
             )
-        except SQLAlchemyError as e:
+        except SQLAlchemyError:
             await self.db.rollback()
-            raise RuntimeError("Failed to remove permissions from role") from e
+            raise
 
     def _to_entity(self, model: Role) -> RoleEntity:
         return RoleEntity(id=model.id, name=model.name, description=model.description)

@@ -149,3 +149,9 @@ class User:
 @dataclass
 class UserWithRoles(User):
     roles: list[Role] | None = None
+
+
+@dataclass
+class UserRole:
+    user_id: UUID
+    role_id: int
