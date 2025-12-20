@@ -37,6 +37,12 @@ class PermissionWithRoles(Permission):
 
 
 @dataclass
+class RolePermission:
+    role_id: int
+    permission_id: int
+
+
+@dataclass
 class Session:
     id: UUID
     user_id: UUID

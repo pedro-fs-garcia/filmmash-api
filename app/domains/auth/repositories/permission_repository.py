@@ -1,15 +1,15 @@
-from typing import Any
-
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import delete, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.decorators import require_dto
 from app.db.exceptions import ResourceAlreadyExistsError, ResourceNotFoundError
 
 from ..entities import Permission as PermissionEntity
-from ..entities import PermissionWithRoles, Role
+from ..entities import PermissionWithRoles, Role, RolePermission
 from ..models import Permission as PermissionModel
+from ..models import role_permissions
 from ..schemas import CreatePermissionDTO, ReplacePermissionDTO, UpdatePermissionDTO
 
 
@@ -17,6 +17,7 @@ class PermissionRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    @require_dto(CreatePermissionDTO)
     async def create(self, dto: CreatePermissionDTO) -> PermissionEntity:
         insert_values = dto.model_dump(exclude_none=True)
         stmt = insert(PermissionModel).values(**insert_values).returning(PermissionModel)
@@ -33,35 +34,50 @@ class PermissionRepository:
             raise RuntimeError("Failed to create permission") from e
 
     async def get_all(self) -> list[PermissionEntity]:
-        stmt = select(PermissionModel.id, PermissionModel.name, PermissionModel.description)
+        stmt = select(PermissionModel)
         result = await self.db.execute(stmt)
         rows = result.scalars().all()
-        return [self._to_entity(row) for row in rows]
+        return [self._to_entity(row) for row in rows] if len(rows) > 0 else []
 
     async def get_by_id(self, id: int) -> PermissionEntity | None:
-        stmt = select(PermissionModel.id, PermissionModel.name, PermissionModel.description).where(
-            PermissionModel.id == id
-        )
+        stmt = select(PermissionModel).where(PermissionModel.id == id)
         result = await self.db.execute(stmt)
         row = result.scalar_one_or_none()
         return self._to_entity(row) if row is not None else None
 
+    async def get_by_name(self, name: str) -> PermissionEntity | None:
+        stmt = select(PermissionModel).where(PermissionModel.name == name)
+        result = await self.db.execute(stmt)
+        row = result.scalar_one_or_none()
+        return self._to_entity(row) if row is not None else None
+
+    @require_dto(UpdatePermissionDTO, ReplacePermissionDTO)
     async def update(
         self, id: int, dto: UpdatePermissionDTO | ReplacePermissionDTO
     ) -> PermissionEntity | None:
-        update_values: dict[str, Any] = dto.model_dump(exclude_none=True)
+        update_values = None
+        if isinstance(dto, ReplacePermissionDTO):
+            update_values = dto.model_dump(exclude_none=False)
+        else:
+            update_values = dto.model_dump(exclude_none=True)
         if not update_values:
             raise ValueError("No fields provided for update")
+
+        distinct_conditions = [
+            getattr(PermissionModel, field).is_distinct_from(value)
+            for field, value in update_values.items()
+        ]
         stmt = (
             update(PermissionModel)
-            .where(PermissionModel.id == id)
+            .where(PermissionModel.id == id, or_(*distinct_conditions))
             .values(**update_values)
             .returning(PermissionModel)
         )
         result = await self.db.execute(stmt)
         row = result.scalar_one_or_none()
         if row is None:
-            return None
+            existing = await self.get_by_id(id)
+            return existing
         await self.db.commit()
         return self._to_entity(row)
 
@@ -93,6 +109,9 @@ class PermissionRepository:
         )
 
     async def add_to_roles(self, id: int, role_ids: list[int]) -> PermissionWithRoles | None:
+        if len(role_ids) == 0:
+            raise ValueError("No permissions provided")
+
         from ..models import Role as Role
         from ..models import role_permissions
 
@@ -101,13 +120,11 @@ class PermissionRepository:
         if permission_res.scalar_one_or_none() is None:
             raise ResourceNotFoundError("Permission", id)
 
-        stmt = select(Role.id).where(Role.id.in_(role_ids))
-        result = await self.db.execute(stmt)
-        found_ids = set(result.scalars().all())
+        stmt = select(func.count(Role.id)).where(Role.id.in_(role_ids))
+        count = (await self.db.execute(stmt)).scalar_one()
 
-        missing_ids = set(role_ids) - found_ids
-        if missing_ids:
-            raise ValueError(f"Roles not found: {missing_ids}")
+        if count != len(set(role_ids)):
+            raise ResourceNotFoundError("Role", "One or more IDs")
 
         from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -117,6 +134,28 @@ class PermissionRepository:
         await self.db.commit()
 
         return await self.get_with_roles(id)
+
+    async def remove_from_roles(self, id: int, role_ids: list[int]) -> list[RolePermission]:
+        stmt = (
+            delete(role_permissions)
+            .where(role_permissions.c.permission_id == id, role_permissions.c.role_id.in_(role_ids))
+            .returning(role_permissions)
+        )
+        try:
+            result = await self.db.execute(stmt)
+            rows = result.mappings().all()
+            await self.db.commit()
+            return (
+                [
+                    RolePermission(permission_id=row.permission_id, role_id=row.role_id)
+                    for row in rows
+                ]
+                if len(rows) > 0
+                else []
+            )
+        except SQLAlchemyError as e:
+            await self.db.rollback()
+            raise RuntimeError("Failed to remove permissions from roles") from e
 
     def _to_entity(self, model: PermissionModel) -> PermissionEntity:
         return PermissionEntity(id=model.id, name=model.name, description=model.description)
