@@ -63,12 +63,12 @@ class JWTService:
             "type": token_type.value,
             "sid": str(session_id),
         }
-        token: str = jwt.encode(token_payload, self.secret_key, algorithm=self.algorithm)
+        token: str = jwt.encode(token_payload, self.secret_key, algorithm=self.algorithm)  # pyright: ignore
         return token
 
     def decode_token(self, token: str) -> dict[str, Any]:
         try:
-            token_payload: dict[str, Any] = jwt.decode(
+            token_payload: dict[str, Any] = jwt.decode(  # pyright: ignore
                 token, self.secret_key, algorithms=[self.algorithm]
             )
             return token_payload

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID
 
 from .enums import OAuthProvider, SessionStatus
@@ -58,7 +58,7 @@ class Session:
 
     def is_expired(self) -> bool:
         """Check if session has expired."""
-        return datetime.now(UTC) > self.expires_at
+        return datetime.now() > self.expires_at
 
     def is_active(self) -> bool:
         return self.status == SessionStatus.ACTIVE
@@ -73,7 +73,7 @@ class Session:
 
     def mark_used(self) -> None:
         """Update last used timestamp."""
-        self.last_used_at = datetime.now(UTC)
+        self.last_used_at = datetime.now()
 
     def revoke(self) -> None:
         """Revoke this session."""

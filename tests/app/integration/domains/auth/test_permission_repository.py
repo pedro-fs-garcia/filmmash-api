@@ -22,7 +22,7 @@ class TestPermissionDTOs:
     @pytest.mark.asyncio
     async def test_create_permission_dto_with_none_name_should_fail(self) -> None:
         with pytest.raises(ValueError):
-            dto = CreatePermissionDTO(name=None, description="A test permission")
+            dto = CreatePermissionDTO(name=None, description="A test permission")  # pyright: ignore
             assert not dto
 
     @pytest.mark.asyncio
@@ -64,7 +64,7 @@ class TestPermissionDTOs:
     @pytest.mark.asyncio
     async def test_replace_permission_dto_with_none_name_should_fail(self) -> None:
         with pytest.raises(ValidationError):
-            dto = ReplacePermissionDTO(name=None, description="A test permission")
+            dto = ReplacePermissionDTO(name=None, description="A test permission")  # pyright: ignore
             assert not dto
 
 

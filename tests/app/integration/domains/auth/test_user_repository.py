@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domains.auth.entities import User
 from app.domains.auth.enums import OAuthProvider
 from app.domains.auth.models import Role as RoleModel
 from app.domains.auth.repositories.user_repository import UserRepository
@@ -90,6 +91,10 @@ class TestUserRepository:
     def user_repo(self, db_session: AsyncSession) -> UserRepository:
         """Create a UserRepository instance for each test."""
         return UserRepository(db=db_session)
+
+    @pytest.fixture
+    async def user(self, user_repo: UserRepository) -> User:
+        return await user_repo.create(self.create_with_oauth_dto)
 
     @pytest.mark.asyncio
     async def test_create_user_with_password_success(self, user_repo: UserRepository) -> None:
@@ -236,6 +241,11 @@ class TestUserRepository:
         updated_user2 = await user_repo.update(user.id, self.update_dto)
         assert updated_user2 is not None
         assert updated_user1 == updated_user2
+
+    @pytest.mark.asyncio
+    async def test_update_empty_dto(self, user: User, user_repo: UserRepository) -> None:
+        res = await user_repo.update(user.id, UpdateUserDTO())
+        assert res is None
 
     @pytest.mark.asyncio
     async def test_update_id_not_found(self, user_repo: UserRepository) -> None:

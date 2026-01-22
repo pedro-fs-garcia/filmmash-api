@@ -68,7 +68,7 @@ def apply_migrations(settings: Settings) -> None:
 
     alembic_config = Config("alembic.ini")
 
-    sync_test_url = settings.test_database_url.replace("postgresql+asyncpg://", "postgresql://")
+    sync_test_url = settings.test_database_url
 
     alembic_config.set_main_option("sqlalchemy.url", sync_test_url)
 

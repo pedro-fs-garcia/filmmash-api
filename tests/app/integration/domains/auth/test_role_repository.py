@@ -18,7 +18,7 @@ class TestRoleDTOs:
     @pytest.mark.asyncio
     async def test_create_role_dto_with_none_name_should_fail(self) -> None:
         with pytest.raises(ValueError):
-            dto = CreateRoleDTO(name=None, description="A test role")
+            dto = CreateRoleDTO(name=None, description="A test role")  # pyright: ignore
             assert not dto
 
     @pytest.mark.asyncio
@@ -48,7 +48,7 @@ class TestRoleDTOs:
     @pytest.mark.asyncio
     async def test_replace_role_dto_with_none_name_should_fail(self) -> None:
         with pytest.raises(ValidationError):
-            dto = ReplaceRoleDTO(name=None, description="A test role")
+            dto = ReplaceRoleDTO(name=None, description="A test role")  # pyright: ignore
             assert not dto
 
 

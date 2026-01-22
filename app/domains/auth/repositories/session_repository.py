@@ -1,10 +1,10 @@
 from uuid import UUID
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.exceptions import ResourceAlreadyExistsError
+from app.core.decorators import require_dto
 from app.domains.auth.enums import SessionStatus
 
 from ..entities import Session as SessionEntity
@@ -16,6 +16,7 @@ class SessionRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    @require_dto(CreateSessionDTO)
     async def create(self, dto: CreateSessionDTO) -> SessionEntity:
         insert_values = dto.model_dump(exclude_none=True)
         stmt = insert(SessionModel).values(**insert_values).returning(SessionModel)
@@ -24,12 +25,12 @@ class SessionRepository:
             row = res.scalar_one()
             await self.db.commit()
             return self._to_entity(row)
-        except IntegrityError as e:
+        except IntegrityError:
             await self.db.rollback()
-            raise ResourceAlreadyExistsError("Session", "refresh_token_hash") from e
-        except Exception as e:
+            raise
+        except Exception:
             await self.db.rollback()
-            raise RuntimeError("Failed to create user") from e
+            raise
 
     async def add(self, session: SessionModel) -> SessionModel:
         self.db.add(session)
@@ -71,18 +72,29 @@ class SessionRepository:
         rows = res.scalars().all()
         return [self._to_entity(row) for row in rows]
 
+    @require_dto(UpdateSessionDTO)
     async def update(self, session_id: UUID, dto: UpdateSessionDTO) -> SessionEntity | None:
         update_values = dto.model_dump(exclude_none=True)
+        if not update_values:
+            return None
+
+        distinct_conditions = [
+            getattr(SessionModel, field).is_distinct_from(value)
+            for field, value in update_values.items()
+        ]
+
         stmt = (
             update(SessionModel)
-            .where(SessionModel.id == session_id)
+            .where(SessionModel.id == session_id, or_(*distinct_conditions))
             .values(**update_values)
             .returning(SessionModel)
         )
         res = await self.db.execute(stmt)
         row = res.scalar_one_or_none()
         if row is None:
-            return None
+            existing = await self.get_by_id(session_id)
+            return existing
+        await self.db.commit()
         return self._to_entity(row)
 
     async def revoke(self, session_id: UUID) -> SessionEntity | None:
@@ -110,20 +122,19 @@ class SessionRepository:
         Revokes the farthest used user session in case the limit is reached.
         Should only be called inside a transaction.
         """
-        async with self.db.begin():
-            old_stmt = (
-                select(SessionModel)
-                .where(SessionModel.user_id == user_id, SessionModel.status == SessionStatus.ACTIVE)
-                .order_by(SessionModel.last_used_at.asc())
-                .offset(limit - 1)
-                .limit(1)
-                .with_for_update(skip_locked=True)
-            )
-            old_res = await self.db.execute(old_stmt)
-            session_to_revoke = old_res.scalar_one_or_none()
-            if session_to_revoke:
-                session_to_revoke.status = SessionStatus.REVOKED
-            await self.db.flush()
+        old_stmt = (
+            select(SessionModel)
+            .where(SessionModel.user_id == user_id, SessionModel.status == SessionStatus.ACTIVE)
+            .order_by(SessionModel.last_used_at.asc())
+            .offset(limit - 1)
+            .limit(1)
+            .with_for_update(skip_locked=True)
+        )
+        old_res = await self.db.execute(old_stmt)
+        session_to_revoke = old_res.scalar_one_or_none()
+        if session_to_revoke:
+            session_to_revoke.status = SessionStatus.REVOKED
+        await self.db.flush()
 
     def _to_entity(self, model: SessionModel) -> SessionEntity:
         device_info = SessionDeviceInfo.model_validate(model.device_info)

@@ -1,10 +1,7 @@
-from pydantic import BaseModel, model_validator
+from pydantic import model_validator
 
+from app.core.schemas import BaseDTO
 from app.domains.auth.enums import OAuthProvider
-
-
-class BaseDTO(BaseModel):
-    model_config = {"extra": "forbid"}
 
 
 class CreateUserDTO(BaseDTO):

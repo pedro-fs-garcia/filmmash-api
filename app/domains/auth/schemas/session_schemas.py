@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, model_validator
 
+from app.core.schemas import BaseDTO
+
 from ..enums import DeviceType, SessionStatus
 
 
@@ -19,7 +21,7 @@ class SessionDeviceInfo(BaseModel):
         return " | ".join([str(v) for v in f_values if v is not None])
 
 
-class CreateSessionDTO(BaseModel):
+class CreateSessionDTO(BaseDTO):
     user_id: UUID
     refresh_token_hash: str | None = None
     status: SessionStatus | None = None
@@ -34,16 +36,14 @@ class CreateSessionDTO(BaseModel):
         return self
 
 
-class UpdateSessionDTO(BaseModel):
+class UpdateSessionDTO(BaseDTO):
     refresh_token_hash: str | None = None
     status: SessionStatus | None = None
     expires_at: datetime | None = None
     last_used_at: datetime | None = None
     device_info: SessionDeviceInfo | None = None
-    user_agent: str | None = None
-    ip_address: str | None = None
 
 
-class RefreshSessionDTO(BaseModel):
+class RefreshSessionDTO(BaseDTO):
     refresh_token_hash: str
     expires_at: datetime

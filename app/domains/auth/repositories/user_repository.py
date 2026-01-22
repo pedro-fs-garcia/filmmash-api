@@ -68,6 +68,9 @@ class UserRepository:
         else:
             update_values = dto.model_dump(exclude_none=True)
 
+        if not update_values:
+            return None
+
         distinct_conditions = [
             getattr(UserModel, field).is_distinct_from(value)
             for field, value in update_values.items()
