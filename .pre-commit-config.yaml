@@ -7,14 +7,14 @@ repos:
     -   id: ruff-format
 
 -   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.2
+    rev: v1.19.1
     hooks:
         - id: mypy
-          args: [--enable-incomplete-feature=NewGenericSyntax]
           additional_dependencies:
             - pydantic>=2.0
             - pydantic-settings>=2.0
             - sqlalchemy>=2.0
+            - alembic>=1.0
             - fastapi
             - prometheus-client
             - psutil

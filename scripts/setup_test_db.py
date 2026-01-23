@@ -18,7 +18,7 @@ from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from alembic import command  # type: ignore[attr-defined]
+from alembic import command
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
