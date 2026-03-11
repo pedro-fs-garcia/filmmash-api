@@ -1,620 +1,270 @@
-# Modern FastAPI Project with Complete Toolchain
+# 5_semestre_backend API
 
-This is a FastAPI project configured with a modern development toolchain. It uses `pyproject.toml` as the single source of truth (according to PEP 621) for dependency management and tool configuration, ensuring consistency, reproducibility, and code quality best practices.
+Backend and API Gateway built with **FastAPI**, **SQLAlchemy 2** (async), and **PostgreSQL**.
 
-## Core Specifications and Technologies
+## Tech Stack
 
-The philosophy of this project is centralization and automation.
-
-  * **Framework:** `FastAPI`
-  * **ASGI Server:** `Uvicorn` (for development and as a production worker)
-  * **WSGI/Process Manager Server:** `Gunicorn` (for managing workers in production)
-  * **Central Configuration:** `pyproject.toml` (manages dependencies and configurations for all tools)
-  * **Linter & Formatter:** `Ruff` (replacing Black, Flake8, and isort)
-  * **Security:** `Bandit` (vulnerability scanner)
-  * **Type Checking:** `MyPy` (static type checker)
-  * **Testing:** `Pytest` (with `pytest-cov` for coverage)
-  * **App Configuration:** `Pydantic-Settings` (environment variables and secrets management)
-  * **Task Automation:** `Makefile` (portable orchestrator for common tasks like `lint`, `test`, `run`)
-  * **Git Hooks:** `pre-commit` (ensures code quality before each commit)
-
----
+| Layer          | Technology                              |
+| -------------- | --------------------------------------- |
+| Framework      | FastAPI 0.121+                          |
+| Language       | Python 3.12+                            |
+| Database       | PostgreSQL + asyncpg                    |
+| ORM            | SQLAlchemy 2 (async)                    |
+| Migrations     | Alembic                                 |
+| Auth           | JWT (PyJWT) + Argon2 password hashing   |
+| Metrics        | prometheus-client + psutil              |
+| Package mgmt   | Poetry                                  |
+| Linting        | Ruff, Bandit, mypy                      |
+| Testing        | pytest + pytest-asyncio + httpx         |
 
 ## Project Structure
 
-The project follows a **Domain-Driven Design (DDD)** and **Clean Architecture–inspired** structure, promoting scalability, maintainability, and clear separation of concerns.
-
 ```
-.
-├── app/                       # Main application package
-│   ├── __init__.py
-│   ├── main.py                # FastAPI entry point (app initialization)
-│   │
-│   ├── api/                   # API layer (controllers / routes)
-│   │   ├── v1/                # Versioned API endpoints
-│   │   │   ├── users.py
-│   │   │   ├── movies.py
-│   │   │   └── __init__.py
-│   │   └── __init__.py
-│   │
-│   ├── core/                  # Core configurations and utilities
-│   │   ├── config.py          # Application settings (Pydantic Settings)
-│   │   ├── security.py        # Authentication and authorization
-│   │   ├── logging.py         # Logging configuration
-│   │   └── __init__.py
-│   │
-│   ├── domains/               # Domain layer (business logic and entities)
-│   │   ├── users/
-│   │   │   ├── models.py      # SQLAlchemy ORM models
-│   │   │   ├── schemas.py     # Pydantic schemas
-│   │   │   ├── repository.py  # Database operations
-│   │   │   ├── services.py    # Business logic / use cases
-│   │   │   └── __init__.py
-│   │   ├── movies/
-│   │   │   ├── models.py
-│   │   │   ├── schemas.py
-│   │   │   ├── repository.py
-│   │   │   ├── services.py
-│   │   │   └── __init__.py
-│   │   └── __init__.py
-│   │
-│   ├── db/                    # Database infrastructure layer
-│   │   ├── session.py         # Async session and engine management
-│   │   ├── base.py            # SQLAlchemy declarative base
-│   │   ├── migrations/        # Alembic migrations
-│   │   └── __init__.py
-│   │
-│   └── dependencies.py        # Shared dependency injection definitions
-│
-├── tests/                     # Test suite
-│   ├── __init__.py
-│   └── test_main.py
-│
-├── .pre-commit-config.yaml    # Pre-commit hooks configuration
-├── Makefile                   # Common development commands
-└── pyproject.toml             # Project dependencies and build configuration
+├── app/
+│   ├── main.py              # FastAPI app factory + lifespan
+│   ├── api/                  # Versioned API router
+│   ├── core/                 # Config, logging, security, middleware, metrics
+│   ├── db/                   # Database engine, session, exceptions
+│   ├── domains/              # Feature modules (auth, health, …)
+│   ├── schemas/              # Shared response schemas
+│   └── seed/                 # Database seed scripts
+├── alembic/                  # Database migrations
+├── tests/                    # Test suite (unit, integration, e2e)
+├── logs/                     # JSON log files (auto-created)
+├── scripts/                  # Utility scripts
+├── alembic.ini               # Alembic configuration
+├── pyproject.toml            # Poetry config, tool settings
+├── Makefile                  # Common commands
+└── run.py                    # Dev entry point
 ```
 
------
+Each sub-module has its own README with detailed documentation:
 
-## 1\. Development Environment
+- [app/core/README.md](app/core/README.md) — configuration, logging, security, middleware, metrics
+- [app/db/README.md](app/db/README.md) — database layer, sessions, exceptions
+- [app/domains/auth/README.md](app/domains/auth/README.md) — authentication, authorization, session management
+- [alembic/README](alembic/README) — migration system and commands
 
-### 1.1. Prerequisites
+---
 
-  * **Python 3.12+** installed on the system
-  * **Git** installed
-  * **Make** (optional, but recommended for automation)
+## Prerequisites
 
-### 1.2. Initial Setup
+- **Python 3.12+**
+- **PostgreSQL** (running locally or in a container)
+- **Poetry** (package manager) — [install guide](https://python-poetry.org/docs/#installation)
 
-#### Option A: Using Makefile (Recommended - Linux/macOS/Windows with Make)
+---
 
-**1. Clone the repository:**
+## Getting Started
+
+### 1. Clone and install dependencies
 
 ```bash
-git clone <your-repository-url>
-cd <project-name>
+git clone <repository-url>
+cd backend
+make install
+# or: poetry install
 ```
 
-**2. Set up the environment and install dependencies:**
+### 2. Configure environment variables
+
+Create a `.env` file in the project root. All variables have sensible defaults for local development, so a minimal `.env` can be empty — but you should at least set a proper JWT secret:
+
+```dotenv
+# .env
+
+# Environment: development | test | production
+ENVIRONMENT=development
+
+# PostgreSQL
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=filmmash_db
+
+# JWT (change the secrets in any non-local environment)
+ACCESS_TOKEN_SIGNING_KEY=change-me-in-production
+REFRESH_TOKEN_SIGNING_KEY=change-me-in-production
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=15
+REFRESH_TOKEN_EXPIRE_DAYS=60
+SESSION_EXPIRE_DAYS=180
+
+# CORS (comma-separated origins, or * for all)
+CORS_ALLOW_ORIGINS=["*"]
+
+# Project metadata
+PROJECT_NAME=5_semestre_backend API
+PROJECT_VERSION=0.1.0
+```
+
+Full variable reference is in the [core/ docs](app/core/README.md#configuration-configpy).
+
+### 3. Set up the database
+
+#### Option A: Development mode (auto-setup)
+
+When `ENVIRONMENT=development`, the app **automatically creates the database and all tables** on startup (drops and recreates). Just make sure PostgreSQL is running:
 
 ```bash
-make install-dev
+make dev
 ```
 
-This command will automatically:
+> **Warning:** This drops all tables every startup. Use only for local development.
 
-  * Create a local virtual environment at `./.venv/`
-  * Install the `app/` package in editable mode
-  * Install all production and development dependencies
-
-**3. Install Git Hooks:**
+#### Option B: Using Alembic migrations (recommended for staging/production)
 
 ```bash
-.venv/bin/pre-commit install
+# Apply all migrations
+make migrate
+
+# Seed initial roles and permissions
+make seed
 ```
 
-#### Option B: Without Makefile (All Operating Systems)
+See [alembic/README](alembic/README) for full migration commands.
 
-##### Linux / macOS
-
-**1. Clone the repository:**
+### 4. Run the server
 
 ```bash
-git clone <your-repository-url>
-cd <project-name>
-```
+# Development (with hot reload)
+make dev
 
-**2. Create the virtual environment:**
-
-```bash
-python3 -m venv .venv
-```
-
-**3. Activate the virtual environment:**
-
-```bash
-source .venv/bin/activate
-```
-
-**4. Update pip:**
-
-```bash
-pip install --upgrade pip
-```
-
-**5. Install dependencies:**
-
-```bash
-pip install -e ".[dev]"
-```
-
-**6. Install pre-commit hooks:**
-
-```bash
-pre-commit install
-```
-
-##### Windows (PowerShell)
-
-**1. Clone the repository:**
-
-```powershell
-git clone <your-repository-url>
-cd <project-name>
-```
-
-**2. Create the virtual environment:**
-
-```powershell
-python -m venv .venv
-```
-
-**3. Activate the virtual environment:**
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-If you get an execution policy error, run this first:
-
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-**4. Update pip:**
-
-```powershell
-python -m pip install --upgrade pip
-```
-
-**5. Install dependencies:**
-
-```powershell
-pip install -e ".[dev]"
-```
-
-**6. Install pre-commit hooks:**
-
-```powershell
-pre-commit install
-```
-
-##### Windows (CMD)
-
-**1. Clone the repository:**
-
-```cmd
-git clone <your-repository-url>
-cd <project-name>
-```
-
-**2. Create the virtual environment:**
-
-```cmd
-python -m venv .venv
-```
-
-**3. Activate the virtual environment:**
-
-```cmd
-.venv\Scripts\activate.bat
-```
-
-**4. Update pip:**
-
-```cmd
-python -m pip install --upgrade pip
-```
-
-**5. Install dependencies:**
-
-```cmd
-pip install -e ".[dev]"
-```
-
-**6. Install pre-commit hooks:**
-
-```cmd
-pre-commit install
-```
-
-### 1.3. Running the Application
-
-#### With Makefile:
-
-```bash
+# Production
 make run
 ```
 
-#### Without Makefile:
+The API will be available at **http://127.0.0.1:8000**.
 
-##### Linux / macOS:
+- Interactive docs: http://127.0.0.1:8000/docs
+- ReDoc: http://127.0.0.1:8000/redoc
+- Health check: `GET /`
+- Metrics: `GET /metrics`
 
-```bash
-source .venv/bin/activate
-python -m uvicorn app.main:create_app --factory --reload
-```
+---
 
-##### Windows (PowerShell):
+## Database Seeding
 
-```powershell
-.venv\Scripts\Activate.ps1
-python -m uvicorn app.main:create_app --factory --reload
-```
-
-##### Windows (CMD):
-
-```cmd
-.venv\Scripts\activate.bat
-python -m uvicorn app.main:create_app --factory --reload
-```
-
-The application will be available at:
-
-  * **API:** `http://127.0.0.1:8000`
-  * **Documentation (Swagger):** `http://127.0.0.1:8000/docs`
-  * **Documentation (ReDoc):** `http://127.0.0.1:8000/redoc`
-
------
-
-## 2\. Development Workflow
-
-### 2.1. Toolchain Commands
-
-#### With Makefile:
-
-| Command          | Description                                 |
-| ---------------- | ------------------------------------------- |
-| `make lint`      | Runs Ruff linter and Bandit scanner         |
-| `make format`    | Formats code with Ruff                      |
-| `make typecheck` | Checks types with MyPy                      |
-| `make test`      | Runs tests with Pytest and shows coverage   |
-| `make run`       | Starts the development server               |
-| `make clean`     | Removes virtual environment and cache files |
-| `make help`      | Shows all available commands                |
-
-#### Without Makefile:
-
-##### Linux / macOS (with environment activated):
+The seed script populates roles, permissions, and their associations:
 
 ```bash
-# Linting
-python -m ruff check app/ tests/
-python -m bandit -c pyproject.toml -r app/
+make seed
+```
 
-# Formatting
-python -m ruff format app/ tests/
+Default seed data:
+
+| Roles   | Permissions                                                             |
+| ------- | ----------------------------------------------------------------------- |
+| `admin` | All `user:*`, `role:*`, `permission:*` permissions                      |
+| `user`  | All `session:*` permissions (login, refresh, logout)                    |
+
+---
+
+## Running Tests
+
+```bash
+# All tests
+make test
+
+# E2E tests only
+make test-e2e
+```
+
+Tests run with `ENVIRONMENT=test`, which targets a separate `{POSTGRES_DB}_test` database. Coverage is reported to the terminal.
+
+---
+
+## Code Quality
+
+### Linting and formatting
+
+```bash
+# Lint (ruff + bandit)
+make lint
+
+# Auto-format
+make format
 
 # Type checking
-python -m mypy --config-file=pyproject.toml app/
-
-# Tests
-python -m pytest --cov=app --cov-report=term-missing
-
-# Run application
-python -m uvicorn app.main:create_app --factory --reload
+make typecheck
 ```
 
-##### Windows (with environment activated):
+### Pre-commit hooks
 
-```powershell
-# Linting
-python -m ruff check app/ tests/
-python -m bandit -c pyproject.toml -r app/
-
-# Formatting
-python -m ruff format app/ tests/
-
-# Type checking
-python -m mypy --config-file=pyproject.toml app/
-
-# Tests
-python -m pytest --cov=app --cov-report=term-missing
-
-# Run application
-python -m uvicorn app.main:create_app --factory --reload
-```
-
-### 2.2. Checklist Before Committing
-
-**IMPORTANT:** Always run these commands before committing your changes:
-
-#### Manual Process (Step-by-Step):
-
-##### 1\. Activate the virtual environment (if not active):
-
-**Linux/macOS:**
+Pre-commit is configured with Ruff, mypy, and Bandit. Install the hooks once:
 
 ```bash
-source .venv/bin/activate
+poetry run pre-commit install
 ```
 
-**Windows PowerShell:**
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-**Windows CMD:**
-
-```cmd
-.venv\Scripts\activate.bat
-```
-
-##### 2\. Format the code:
+Or run all checks manually (lint + format + typecheck + bandit + tests):
 
 ```bash
-python -m ruff format app/ tests/
+make pre-commit
 ```
 
-##### 3\. Fix linting problems automatically:
+---
 
-```bash
-python -m ruff check --fix app/ tests/
-```
+## Makefile Reference
 
-##### 4\. Check linting (without auto-fix):
+| Command              | Description                                      |
+| -------------------- | ------------------------------------------------ |
+| `make install`       | Install all dependencies via Poetry              |
+| `make dev`           | Run dev server with hot reload                   |
+| `make run`           | Run production server                            |
+| `make test`          | Run full test suite with coverage                |
+| `make test-e2e`      | Run end-to-end tests only                        |
+| `make lint`          | Run Ruff and Bandit linters                      |
+| `make format`        | Auto-format code with Ruff                       |
+| `make typecheck`     | Run mypy type checking                           |
+| `make migrate`       | Apply all pending Alembic migrations             |
+| `make makemigration m="msg"` | Auto-generate a new Alembic migration    |
+| `make seed`          | Seed roles, permissions, and associations        |
+| `make pre-commit`    | Run all checks (lint + format + types + tests)   |
 
-```bash
-python -m ruff check app/ tests/
-```
+---
 
-If there are errors, fix them manually before continuing.
+## API Overview
 
-##### 5\. Run security scanner:
+All domain endpoints are mounted under `/api`:
 
-```bash
-python -m bandit -c pyproject.toml -r app/
-```
+| Prefix                  | Description                     |
+| ----------------------- | ------------------------------- |
+| `POST /api/auth/register` | User registration          |
+| `POST /api/auth/login`    | Login (returns tokens)     |
+| `POST /api/auth/refresh`  | Refresh token rotation     |
+| `POST /api/auth/logout`   | Revoke session             |
+| `GET  /api/auth/me`       | Current user profile       |
+| `/api/users/`              | User management (CRUD)     |
+| `/api/roles/`              | Role management (CRUD)     |
+| `/api/permissions/`        | Permission management (CRUD) |
+| `GET /`                       | Health check               |
+| `GET /metrics`                | Prometheus metrics          |
+| `GET /metrics/{prefix}`       | Filtered metrics by prefix  |
 
-If there are vulnerabilities, fix them before continuing.
+All protected endpoints require a `Authorization: Bearer <access_token>` header. See the [auth docs](app/domains/auth/README.md) for full details on the authentication flow.
 
-##### 6\. Check static types:
+---
 
-```bash
-python -m mypy --config-file=pyproject.toml app/
-```
+## Logging
 
-Fix any typing errors before continuing.
+Structured JSON logs are written to:
 
-##### 7\. Run tests:
+- `logs/app.json` — INFO and above
+- `logs/error.json` — ERROR and above
+- Console — DEBUG and above
 
-```bash
-python -m pytest --cov=app --cov-report=term-missing
-```
+Files rotate at 10 MB with 5 backups. See [core/ docs](app/core/README.md#logger-loggerpy) for details.
 
-Ensure all tests pass and coverage is adequate.
+---
 
-##### 8\. Add your changes to Git:
+## Known Security Limitations
 
-```bash
-git add .
-```
+The following security improvements have been identified but are **deferred for a future release**:
 
-##### 9\. Commit:
-
-```bash
-git commit -m "Your commit message"
-```
-
-**Note:** If you installed pre-commit (`pre-commit install`), steps 2-6 will be executed automatically when you try to commit. If any check fails, the commit will be blocked until you fix the problems.
-
-#### Using Pre-commit Hooks (Automatic):
-
-If you installed the pre-commit hooks, simply:
-
-```bash
-git add .
-git commit -m "Your commit message"
-```
-
-Pre-commit will automatically run:
-
-  * Ruff format
-  * Ruff check (with --fix)
-  * MyPy
-  * Bandit
-  * Checks for whitespace, YAML, TOML
-
-If any check fails, fix the problems and try to commit again.
-
-#### Quick Command (With Makefile):
-
-```bash
-make format && make lint && make typecheck && make test
-```
-
-If all commands pass successfully, you are ready to commit\!
-
-### 2.3. Running Pre-commit Manually
-
-To run all pre-commit checks without committing:
-
-```bash
-pre-commit run --all-files
-```
-
------
-
-## 3\. Production Environment
-
-### 3.1. Key Differences (Dev vs. Prod)
-
-1.  **Dependencies:** Install **only** production dependencies (without `[dev]`)
-2.  **Server:** Use `gunicorn` with multiple workers, never `--reload`
-3.  **Configuration:** Use environment variables, never `.env` files
-4.  **Logging:** Configure structured JSON logs
-5.  **Debug:** Always disable `debug=True` in FastAPI
-
-### 3.2. Production Installation
-
-```bash
-# Create virtual environment
-python3 -m venv .venv
-
-# Activate (Linux/macOS)
-source .venv/bin/activate
-
-# Install ONLY production dependencies
-pip install -e .
-```
-
-### 3.3. Production Run Command
-
-```bash
-gunicorn -k uvicorn.workers.UvicornWorker app.main:app \
-  --workers 4 \
-  --bind 0.0.0.0:80
-```
-
-Adjust `--workers` based on the server's CPU: `(2 * CPU_CORES) + 1`
-
-### 3.4. Example Dockerfile
-
-```dockerfile
-# --- Stage 1: Builder ---
-FROM python:3.12-slim as builder
-
-WORKDIR /app
-RUN pip install --upgrade pip
-
-COPY pyproject.toml .
-RUN pip install --prefix=/install .
-
-# --- Stage 2: Final ---
-FROM python:3.12-slim
-
-WORKDIR /app
-
-COPY --from=builder /install /usr/local
-COPY ./app /app/app
-
-EXPOSE 80
-
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", \
-     "app.main:app", "--workers", "4", "--bind", "0.0.0.0:80"]
-```
-
------
-
-## 4\. Configuration Management
-
-### 4.1. Development
-
-1.  Copy the example file:
-
-    ```bash
-    cp .env.example .env
-    ```
-
-2.  Edit `.env` with your local settings:
-
-    ```
-    DATABASE_URL=postgresql://user:pass@localhost/db
-    SECRET_KEY=your-secret-key-here
-    DEBUG=True
-    ```
-
-3.  **IMPORTANT:** Never commit the `.env` file (it must be in `.gitignore`)
-
-### 4.2. Production
-
-Define environment variables directly in the system:
-
-**Linux/macOS:**
-
-```bash
-export DATABASE_URL="postgresql://user:pass@prod-host/db"
-export SECRET_KEY="production-secret-key"
-export DEBUG="False"
-```
-
-**Windows PowerShell:**
-
-```powershell
-$env:DATABASE_URL="postgresql://user:pass@prod-host/db"
-$env:SECRET_KEY="production-secret-key"
-$env:DEBUG="False"
-```
-
-**Docker/Kubernetes:**
-Use secrets management and environment variables in the container configuration.
-
------
-
-## 5\. Troubleshooting
-
-### Problem: "Module not found" when running the application
-
-**Solution:** Ensure the virtual environment is activated and the project was installed in editable mode:
-
-```bash
-pip install -e ".[dev]"
-```
-
-### Problem: Pre-commit doesn't work on Windows
-
-**Solution:** Run PowerShell as administrator and adjust the execution policy:
-
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-### Problem: Permission error on Linux/macOS
-
-**Solution:** Do not use `sudo` with pip. Use virtual environments to isolate dependencies.
-
-### Problem: Tests failing locally
-
-**Solution:** Ensure all development dependencies are installed:
-
-```bash
-pip install -e ".[dev]"
-```
-
------
-
-## 6\. Additional Resources
-
-  * **FastAPI Documentation:** [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/)
-  * **Ruff Documentation:** [https://docs.astral.sh/ruff/](https://docs.astral.sh/ruff/)
-  * **Pydantic Documentation:** [https://docs.pydantic.dev/](https://docs.pydantic.dev/)
-  * **Pytest Documentation:** [https://docs.pytest.org/](https://docs.pytest.org/)
-
------
-
-## 7\. Contributing
-
-1.  Fork the project
-2.  Create a branch for your feature (`git checkout -b feature/new-feature`)
-3.  Follow the checklist before committing (section 2.2)
-4.  Commit your changes (`git commit -m 'Adds new feature'`)
-5.  Push to the branch (`git push origin feature/new-feature`)
-6.  Open a Pull Request
-
------
-
-## License
-
-[Specify the project license here]
+| # | Severity | Issue | Notes |
+|---|----------|-------|-------|
+| 2 | 🔴 Critical | Hardcoded JWT secret default | `config.py` uses a placeholder if env vars are missing. Add startup validation before production deployment. |
+| 3 | 🟠 High | No rate limiting on login/register | A middleware stub exists but is not yet implemented. Recommend a Redis-backed solution for multi-instance deployments. |
+| 11 | 🔵 Low | HS256 symmetric algorithm | Consider RS256/ES256 for microservice architectures where verifying services should not hold the signing secret. |
