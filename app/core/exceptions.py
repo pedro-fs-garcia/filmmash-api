@@ -33,8 +33,6 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        logger.warning(f"HTTP error: {exc.detail}", extra={"path": str(request.url)})
-
         app_http_exc = AppHTTPException(
             status_code=exc.status_code,
             detail=exc.detail,
@@ -47,13 +45,21 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def validation_exception_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        logger.warning(f"Validation error: {exc.errors()}", extra={"path": str(request.url)})
+        sanitized_errors: list[dict[Any, Any]] = []
+        for err in exc.errors():
+            clean = {k: v for k, v in err.items() if k != "ctx"}
+            if "ctx" in err and isinstance(err["ctx"], dict):
+                clean["ctx"] = {
+                    k: str(v) if not isinstance(v, (str, int, float, bool, type(None))) else v
+                    for k, v in err["ctx"].items()
+                }
+            sanitized_errors.append(clean)
 
         app_http_exc = AppHTTPException(
             status_code=422,
             detail="Request validation failed",
             title="Validation Error",
-            errors=exc.errors(),
+            errors=sanitized_errors,
         )
         response_factory = ResponseFactory(request)
         return response_factory.error(app_http_exc)

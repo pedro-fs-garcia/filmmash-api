@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.decorators import require_dto
+from app.db.exceptions import ResourceAlreadyExistsError
 
 from ..entities import Permission as PermissionEntity
 from ..entities import PermissionWithRoles, Role, RolePermission
@@ -25,9 +26,9 @@ class PermissionRepository:
             row = result.scalar_one()
             await self.db.commit()
             return self._to_entity(row)
-        except IntegrityError:
+        except IntegrityError as err:
             await self.db.rollback()
-            raise
+            raise ResourceAlreadyExistsError("Permission", dto.name) from err
         except Exception:
             await self.db.rollback()
             raise

@@ -1,9 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.http.schemas import SessionDeviceInfo
 from app.core.security import JWTService
 from app.domains.auth.enums import SessionStatus
 from app.domains.auth.exceptions import SessionExpiredError, SessionNotFoundError
@@ -11,7 +12,12 @@ from app.domains.auth.exceptions import SessionExpiredError, SessionNotFoundErro
 from ..entities import Session
 from ..models import Session as SessionModel
 from ..repositories.session_repository import SessionRepository
-from ..schemas import CreateSessionDTO, SessionDeviceInfo, UpdateSessionDTO
+from ..schemas import CreateSessionDTO, UpdateSessionDTO
+
+
+def _utcnow() -> datetime:
+    """Return the current UTC time as a timezone-naive datetime (matches DB columns)."""
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class SessionService:
@@ -28,30 +34,33 @@ class SessionService:
         self.max_active_sessions = 5
 
     async def init_session(
-        self, user_id: UUID, device_info: SessionDeviceInfo | None = None
+        self, user_id: UUID, role_names: list[str], device_info: SessionDeviceInfo | None = None
     ) -> tuple[str, str]:
         session_dto = CreateSessionDTO(
             user_id=user_id,
+            role_names=role_names,
             status=SessionStatus.ACTIVE,
-            expires_at=datetime.now() + get_settings().session_default_timedelta,
+            expires_at=_utcnow() + get_settings().session_default_timedelta,
             device_info=device_info,
-            last_used_at=datetime.now(),
+            last_used_at=_utcnow(),
         )
         session, refresh_token = await self.create(session_dto)
-        access_token = self.jwt_service.create_access_token(user_id, session.id)
+        access_token = self.jwt_service.create_access_token(user_id, role_names, session.id)
 
         return access_token, refresh_token
 
     async def create(self, dto: CreateSessionDTO) -> tuple[Session, str]:
-        async with self.db.begin():
-            await self.repo.free_active_sessions_limit(dto.user_id, self.max_active_sessions)
-            session_model = await self.repo.add(SessionModel(**dto.model_dump(exclude_none=True)))
-            refresh_token = self.jwt_service.create_refresh_token(
-                session_model.user_id, session_model.id
-            )
-            refresh_token_hash = self.jwt_service.hash_token(refresh_token)
-            session_model.refresh_token_hash = refresh_token_hash
-            await self.db.flush()
+        await self.repo.free_active_sessions_limit(dto.user_id, self.max_active_sessions)
+        session_model = await self.repo.add(
+            SessionModel(**dto.model_dump(exclude={"role_names"}, exclude_none=True))
+        )
+        refresh_token = self.jwt_service.create_refresh_token(
+            session_model.user_id, dto.role_names, session_model.id
+        )
+        refresh_token_hash = self.jwt_service.hash_token(refresh_token)
+        session_model.refresh_token_hash = refresh_token_hash
+        await self.db.flush()
+        await self.db.commit()
 
         device_info = SessionDeviceInfo.model_validate(session_model.device_info)
         session_entity = Session(
@@ -86,7 +95,7 @@ class SessionService:
         return await self.repo.revoke(session_id)
 
     async def mark_used(self, session_id: UUID) -> Session | None:
-        last_used_at = datetime.now()
+        last_used_at = _utcnow()
         return await self.repo.update(session_id, UpdateSessionDTO(last_used_at=last_used_at))
 
     async def mark_expired(self, session_id: UUID) -> Session | None:
@@ -95,19 +104,25 @@ class SessionService:
     async def refresh(
         self, session: Session, new_refresh_token_hash: str, time_delta: timedelta
     ) -> Session:
-        if session.expires_at < datetime.now():
+        if session.expires_at < _utcnow():
             raise SessionExpiredError("Session cannot be refreshed after expired.")
 
         update_dto = UpdateSessionDTO(
             refresh_token_hash=new_refresh_token_hash,
             status=SessionStatus.ACTIVE,
-            last_used_at=datetime.now(),
+            expires_at=_utcnow() + time_delta,
+            last_used_at=_utcnow(),
         )
-        updated_session = await self.repo.update(session.id, update_dto)
+        updated_session = await self.repo.atomic_refresh_token(
+            session.id, session.refresh_token_hash, update_dto
+        )
         if updated_session is None:
-            raise SessionNotFoundError("Session could not be refreshed.")
+            raise SessionNotFoundError(
+                "Session could not be refreshed. Token may have been reused."
+            )
         return updated_session
 
     async def revoke_all_user_sessions(self, user_id: UUID) -> None:
-        # TODO Implement
-        ...
+        active_sessions = await self.repo.get_active_by_user_id(user_id)
+        for session in active_sessions:
+            await self.repo.revoke(session.id)

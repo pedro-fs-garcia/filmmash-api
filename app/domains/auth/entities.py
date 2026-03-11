@@ -1,9 +1,27 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
+from enum import Enum
 from uuid import UUID
 
+from app.core.http.schemas import SessionDeviceInfo
+
 from .enums import OAuthProvider, SessionStatus
-from .schemas import SessionDeviceInfo
+
+
+def _utcnow() -> datetime:
+    """Return the current UTC time as a timezone-naive datetime (matches DB columns)."""
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _serialize_value(value: object) -> object:
+    """Convert non-JSON-serializable values to their string representations."""
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, Enum):
+        return value.value
+    return value
 
 
 @dataclass
@@ -58,7 +76,7 @@ class Session:
 
     def is_expired(self) -> bool:
         """Check if session has expired."""
-        return datetime.now() > self.expires_at
+        return _utcnow() > self.expires_at
 
     def is_active(self) -> bool:
         return self.status == SessionStatus.ACTIVE
@@ -73,7 +91,7 @@ class Session:
 
     def mark_used(self) -> None:
         """Update last used timestamp."""
-        self.last_used_at = datetime.now()
+        self.last_used_at = _utcnow()
 
     def revoke(self) -> None:
         """Revoke this session."""
@@ -145,10 +163,26 @@ class User:
             return False
         return self.can_local_login() or self.can_oauth_login()
 
+    def to_response_dict(self) -> dict[str, object]:
+        """Return a dict safe for API responses, excluding sensitive fields."""
+        return {k: _serialize_value(v) for k, v in self.__dict__.items() if k != "password_hash"}
+
 
 @dataclass
 class UserWithRoles(User):
     roles: list[Role] | None = None
+
+    def to_response_dict(self) -> dict[str, object]:
+        """Return a dict safe for API responses, excluding sensitive fields."""
+        base = super().to_response_dict()
+        if self.roles is not None:
+            base["roles"] = [
+                {k: _serialize_value(v) for k, v in role.__dict__.items()} for role in self.roles
+            ]
+        return base
+
+    def roles_names(self) -> list[str]:
+        return [r.name for r in self.roles] if self.roles is not None else []
 
 
 @dataclass

@@ -5,11 +5,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.decorators import require_dto
+from app.core.http.schemas import SessionDeviceInfo
 from app.domains.auth.enums import SessionStatus
 
 from ..entities import Session as SessionEntity
 from ..models import Session as SessionModel
-from ..schemas import CreateSessionDTO, SessionDeviceInfo, UpdateSessionDTO
+from ..schemas import CreateSessionDTO, UpdateSessionDTO
 
 
 class SessionRepository:
@@ -18,7 +19,7 @@ class SessionRepository:
 
     @require_dto(CreateSessionDTO)
     async def create(self, dto: CreateSessionDTO) -> SessionEntity:
-        insert_values = dto.model_dump(exclude_none=True)
+        insert_values = dto.model_dump(exclude={"role_names"}, exclude_none=True)
         stmt = insert(SessionModel).values(**insert_values).returning(SessionModel)
         try:
             res = await self.db.execute(stmt)
@@ -99,6 +100,33 @@ class SessionRepository:
 
     async def revoke(self, session_id: UUID) -> SessionEntity | None:
         return await self.update(session_id, UpdateSessionDTO(status=SessionStatus.REVOKED))
+
+    @require_dto(UpdateSessionDTO)
+    async def atomic_refresh_token(
+        self, session_id: UUID, old_refresh_token_hash: str, dto: UpdateSessionDTO
+    ) -> SessionEntity | None:
+        """
+        Atomically update the session only if the current refresh_token_hash matches
+        the expected old hash. Prevents race conditions where two concurrent
+        requests could both use the same refresh token.
+        """
+        update_values = dto.model_dump(exclude_none=True)
+        stmt = (
+            update(SessionModel)
+            .where(
+                SessionModel.id == session_id,
+                SessionModel.refresh_token_hash == old_refresh_token_hash,
+                SessionModel.status == SessionStatus.ACTIVE,
+            )
+            .values(**update_values)
+            .returning(SessionModel)
+        )
+        res = await self.db.execute(stmt)
+        row = res.scalar_one_or_none()
+        if row is None:
+            return None
+        await self.db.commit()
+        return self._to_entity(row)
 
     async def count_active_sessions_per_user(self, user_id: UUID) -> int:
         stmt = select(func.count(SessionModel.id)).where(

@@ -11,7 +11,6 @@ from .engine import engine
 
 
 async def init_postgres_db() -> None:
-    get_logger().info(f"Starting database{get_settings().POSTGRES_DB}...")
     for _ in range(10):
         try:
             await _create_db_if_not_exists()
@@ -23,7 +22,6 @@ async def init_postgres_db() -> None:
 
 
 async def close_postgres_db() -> None:
-    get_logger().info("Shutting down database engine...")
     await engine.dispose()
 
 
@@ -44,7 +42,7 @@ async def _create_db_if_not_exists() -> None:
 
 
 async def _create_tables() -> None:
-    engine = create_async_engine(get_settings().database_url, echo=True, future=True)
+    engine = create_async_engine(get_settings().database_url, future=True)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)

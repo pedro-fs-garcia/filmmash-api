@@ -8,7 +8,7 @@ from app.core.exceptions import AppHTTPException
 from app.db.exceptions import ResourceAlreadyExistsError
 from app.schemas.response import GenericSuccessContent
 
-from ..dependencies import RoleServiceDep
+from ..dependencies import CurrentUserSessionDep, RoleServiceDep, require_permission
 from ..entities import Role as RoleEntity
 from ..schemas import AddRolePermissionsDTO, CreateRoleDTO, ReplaceRoleDTO, UpdateRoleDTO
 
@@ -25,9 +25,13 @@ post_role_responses: dict[int | str, dict[str, Any]] = {
     tags=["Roles"],
     response_model=GenericSuccessContent[RoleEntity],
     responses=post_role_responses,
+    dependencies=[require_permission("role:create")],
 )
 async def create_role(
-    dto: CreateRoleDTO, service: RoleServiceDep, response: ResponseFactoryDep
+    dto: CreateRoleDTO,
+    _auth: CurrentUserSessionDep,
+    service: RoleServiceDep,
+    response: ResponseFactoryDep,
 ) -> JSONResponse:
     try:
         role = await service.create(dto)
@@ -49,8 +53,11 @@ async def create_role(
     responses={
         status.HTTP_200_OK: {"description": "List of all roles"},
     },
+    dependencies=[require_permission("role:list")],
 )
-async def get_roles(service: RoleServiceDep, response: ResponseFactoryDep) -> JSONResponse:
+async def get_roles(
+    _auth: CurrentUserSessionDep, service: RoleServiceDep, response: ResponseFactoryDep
+) -> JSONResponse:
     roles = await service.get_all()
     return response.success(
         data=[role.__dict__ for role in roles],
@@ -58,8 +65,10 @@ async def get_roles(service: RoleServiceDep, response: ResponseFactoryDep) -> JS
     )
 
 
-@role_router.get("/{id}", tags=["Roles"])
-async def get_role(id: int, service: RoleServiceDep, response: ResponseFactoryDep) -> JSONResponse:
+@role_router.get("/{id}", tags=["Roles"], dependencies=[require_permission("role:read")])
+async def get_role(
+    id: int, _auth: CurrentUserSessionDep, service: RoleServiceDep, response: ResponseFactoryDep
+) -> JSONResponse:
     role = await service.get_one(id=id)
     if not role:
         raise AppHTTPException(
@@ -71,9 +80,13 @@ async def get_role(id: int, service: RoleServiceDep, response: ResponseFactoryDe
     )
 
 
-@role_router.put("/{id}", tags=["Roles"])
+@role_router.put("/{id}", tags=["Roles"], dependencies=[require_permission("role:replace")])
 async def replace_role(
-    id: int, dto: ReplaceRoleDTO, service: RoleServiceDep, response: ResponseFactoryDep
+    id: int,
+    dto: ReplaceRoleDTO,
+    _auth: CurrentUserSessionDep,
+    service: RoleServiceDep,
+    response: ResponseFactoryDep,
 ) -> JSONResponse:
     role = await service.update(id, dto)
     if role is None:
@@ -86,9 +99,13 @@ async def replace_role(
     )
 
 
-@role_router.patch("/{id}", tags=["Roles"])
+@role_router.patch("/{id}", tags=["Roles"], dependencies=[require_permission("role:update")])
 async def update_role(
-    id: int, dto: UpdateRoleDTO, service: RoleServiceDep, response: ResponseFactoryDep
+    id: int,
+    dto: UpdateRoleDTO,
+    _auth: CurrentUserSessionDep,
+    service: RoleServiceDep,
+    response: ResponseFactoryDep,
 ) -> JSONResponse:
     role = await service.update(id, dto)
     if role is None:
@@ -101,9 +118,12 @@ async def update_role(
     )
 
 
-@role_router.delete("/{id}", tags=["Roles"])
+@role_router.delete("/{id}", tags=["Roles"], dependencies=[require_permission("role:delete")])
 async def delete_role(
-    id: int, service: RoleServiceDep, response: ResponseFactoryDep
+    id: int,
+    _auth: CurrentUserSessionDep,
+    service: RoleServiceDep,
+    response: ResponseFactoryDep,
 ) -> JSONResponse:
     role = await service.delete(id)
     if role is None:
@@ -116,9 +136,16 @@ async def delete_role(
     )
 
 
-@role_router.get("/{id}/permissions", tags=["Roles", "Permissions"])
+@role_router.get(
+    "/{id}/permissions",
+    tags=["Roles", "Permissions"],
+    dependencies=[require_permission("role:read_permissions")],
+)
 async def get_role_permissions(
-    id: int, service: RoleServiceDep, response: ResponseFactoryDep
+    id: int,
+    _auth: CurrentUserSessionDep,
+    service: RoleServiceDep,
+    response: ResponseFactoryDep,
 ) -> JSONResponse:
     role = await service.get_with_permissions(id)
     if role is None:
@@ -128,9 +155,17 @@ async def get_role_permissions(
     return response.success(data=role.__dict__, status_code=status.HTTP_200_OK)
 
 
-@role_router.post("/{id}/permissions", tags=["Roles", "Permissions"])
+@role_router.post(
+    "/{id}/permissions",
+    tags=["Roles", "Permissions"],
+    dependencies=[require_permission("role:add_permissions")],
+)
 async def add_role_permissions(
-    id: int, dto: AddRolePermissionsDTO, service: RoleServiceDep, response: ResponseFactoryDep
+    id: int,
+    dto: AddRolePermissionsDTO,
+    _auth: CurrentUserSessionDep,
+    service: RoleServiceDep,
+    response: ResponseFactoryDep,
 ) -> JSONResponse:
     role = await service.add_permissions(id, dto.ids)
     return response.success(data=role.__dict__, status_code=status.HTTP_200_OK)

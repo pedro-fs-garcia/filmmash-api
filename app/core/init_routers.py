@@ -12,6 +12,7 @@ from app.core import (
 )
 from app.core.config import Settings
 from app.core.metrics import metrics_router
+from app.domains.health import health_router
 from app.schemas.response import ErrorContent, GenericSuccessContent
 
 settings: Settings = get_settings()
@@ -35,15 +36,19 @@ root_responses: dict[int | str, dict[str, Any]] = {
 def initiate_routers(app: FastAPI) -> None:
     inject_response_factory = Depends(get_response_factory)
 
-    app.include_router(api_router, prefix="/api")
     app.include_router(metrics_router)
+    app.include_router(health_router)
+    app.include_router(api_router, prefix="/api")
 
     @app.get("/", tags=["Health Check"], responses=root_responses)
     async def read_root(
         response_factory: ResponseFactory = inject_response_factory,
     ) -> JSONResponse:
-        """root endpoint to verify if the API is running."""
+        """root endpoint to verify the API's heakth status."""
+
+        data = {"name": app.title, "status": "ok", "environment": settings.ENVIRONMENT}
+
         return response_factory.success(
-            data={"name": app.title, "status": "ok", "environment": settings.ENVIRONMENT},
+            data=data,
             status_code=status.HTTP_200_OK,
         )

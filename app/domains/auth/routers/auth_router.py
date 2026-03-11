@@ -58,16 +58,14 @@ async def login(
             data={"access_token": access_token, "refresh_token": refresh_token},
             status_code=status.HTTP_200_OK,
         )
-    except (UserNotFoundError, InvalidPasswordError) as e:
+    except (UserNotFoundError, InvalidPasswordError, UserPasswordNotConfiguredError) as e:
         raise AppHTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password"
         ) from e
-    except UserPasswordNotConfiguredError as e:
-        raise AppHTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @auth_router.post("/register", tags=["Auth"], responses=register_responses)
-async def register(
+async def register_common_user(
     dto: RegisterUserRequest, service: AuthServiceDep, response: ResponseFactoryDep
 ) -> JSONResponse:
     try:
@@ -79,8 +77,8 @@ async def register(
         )
     except ResourceAlreadyExistsError as e:
         raise AppHTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"User with email '{dto.email}' already exists",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid registration data",
         ) from e
 
 
@@ -132,5 +130,7 @@ async def get_me(
     user_session: CurrentUserSessionDep, service: UserServiceDep, response: ResponseFactoryDep
 ) -> JSONResponse:
     user = user_session[0]
-    user_with_roles = await service.get_by_id(user.id, with_roles=True)
-    return response.success(data=user_with_roles, status_code=status.HTTP_200_OK)
+    user_with_roles = await service.get_by_id_with_roles(user.id)
+    if user_with_roles is None:
+        raise AppHTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    return response.success(data=user_with_roles.to_response_dict(), status_code=status.HTTP_200_OK)

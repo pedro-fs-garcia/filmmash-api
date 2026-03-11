@@ -1,18 +1,21 @@
 from uuid import UUID
 
 from sqlalchemy import delete, func, insert, or_, select, update
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.decorators import require_dto
+from app.db.exceptions import ResourceAlreadyExistsError
 
+from ..entities import Permission as PermissionEntity
 from ..entities import Role as RoleEntity
 from ..entities import User as UserEntity
 from ..entities import UserRole, UserWithRoles
+from ..models import Permission as PermissionModel
 from ..models import Role as RoleModel
 from ..models import User as UserModel
-from ..models import user_roles
+from ..models import role_permissions, user_roles
 from ..schemas import CreateUserDTO, ReplaceUserDTO, UpdateUserDTO
 
 
@@ -21,14 +24,24 @@ class UserRepository:
         self.db = db
 
     @require_dto(CreateUserDTO)
-    async def create(self, dto: CreateUserDTO) -> UserEntity:
-        insert_values = dto.model_dump(exclude_none=True)
+    async def create(self, dto: CreateUserDTO) -> UserWithRoles:
+        insert_values = dto.model_dump(exclude={"role_ids"}, exclude_none=True)
         stmt = insert(UserModel).values(**insert_values).returning(UserModel)
         try:
             res = await self.db.execute(stmt)
-            row = res.scalar_one()
+            user = res.scalar_one()
+            if dto.role_ids:
+                role_rows = [{"user_id": user.id, "role_id": role_id} for role_id in dto.role_ids]
+
+                await self.db.execute(insert(user_roles).values(role_rows))
+
             await self.db.commit()
-            return self._to_entity(row)
+            await self.db.refresh(user, attribute_names=["roles"])
+            return self._to_user_with_roles(user)
+
+        except IntegrityError as err:
+            await self.db.rollback()
+            raise ResourceAlreadyExistsError("User", dto.email) from err
         except SQLAlchemyError:
             await self.db.rollback()
             raise
@@ -64,7 +77,7 @@ class UserRepository:
     async def update(self, id: UUID, dto: UpdateUserDTO | ReplaceUserDTO) -> UserEntity | None:
         update_values = None
         if isinstance(dto, ReplaceUserDTO):
-            update_values = dto.model_dump(exclude_none=False)
+            update_values = dto.model_dump(exclude={"role_ids"}, exclude_none=False)
         else:
             update_values = dto.model_dump(exclude_none=True)
 
@@ -136,6 +149,28 @@ class UserRepository:
             roles=roles,
         )
 
+    async def get_by_email_with_roles(self, email: str) -> UserWithRoles | None:
+        stmt = (
+            select(UserModel).where(UserModel.email == email).options(selectinload(UserModel.roles))
+        )
+        result = await self.db.execute(stmt)
+        row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        roles = [RoleEntity(id=r.id, name=r.name, description=r.description) for r in row.roles]
+        return UserWithRoles(
+            id=row.id,
+            email=row.email,
+            password_hash=row.password_hash,
+            username=row.username,
+            name=row.name,
+            oauth_provider=row.oauth_provider,
+            oauth_provider_id=row.oauth_provider_id,
+            is_active=row.is_active,
+            is_verified=row.is_verified,
+            roles=roles,
+        )
+
     async def add_roles(
         self, id: UUID, role_ids: list[int]
     ) -> tuple[UserWithRoles | None, set[int] | None]:
@@ -188,6 +223,32 @@ class UserRepository:
             await self.db.rollback()
             raise
 
+    async def get_user_roles(self, user_id: UUID) -> list[RoleEntity]:
+        stmt = (
+            select(UserModel).where(UserModel.id == user_id).options(selectinload(UserModel.roles))
+        )
+        result = await self.db.execute(stmt)
+        user: UserModel | None = result.scalar_one_or_none()
+        if user is None:
+            return []
+        return [RoleEntity(id=r.id, name=r.name, description=r.description) for r in user.roles]
+
+    async def get_user_permissions(self, user_id: UUID) -> list[PermissionEntity]:
+        stmt = (
+            select(PermissionModel)
+            .join(role_permissions, PermissionModel.id == role_permissions.c.permission_id)
+            .join(user_roles, user_roles.c.role_id == role_permissions.c.role_id)
+            .where(user_roles.c.user_id == user_id)
+            .distinct()
+        )
+        result = await self.db.execute(stmt)
+        permissions = result.scalars().all()
+        if len(permissions) == 0:
+            return []
+        return [
+            PermissionEntity(id=p.id, name=p.name, description=p.description) for p in permissions
+        ]
+
     def _to_entity(self, model: UserModel) -> UserEntity:
         return UserEntity(
             id=model.id,
@@ -199,4 +260,19 @@ class UserRepository:
             oauth_provider_id=model.oauth_provider_id,
             is_active=model.is_active,
             is_verified=model.is_verified,
+        )
+
+    def _to_user_with_roles(self, model: UserModel) -> UserWithRoles:
+        roles = [RoleEntity(id=r.id, name=r.name, description=r.description) for r in model.roles]
+        return UserWithRoles(
+            id=model.id,
+            email=model.email,
+            password_hash=model.password_hash,
+            username=model.username,
+            name=model.name,
+            oauth_provider=model.oauth_provider,
+            oauth_provider_id=model.oauth_provider_id,
+            is_active=model.is_active,
+            is_verified=model.is_verified,
+            roles=roles,
         )

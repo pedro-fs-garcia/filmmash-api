@@ -1,3 +1,5 @@
+from app.core.http.schemas import SessionDeviceInfo
+
 from .api_schemas import (
     LoginResponse,
     RefreshSessionRequest,
@@ -10,7 +12,6 @@ from .role_schemas import AddRolePermissionsDTO, CreateRoleDTO, ReplaceRoleDTO, 
 from .session_schemas import (
     CreateSessionDTO,
     RefreshSessionDTO,
-    SessionDeviceInfo,
     UpdateSessionDTO,
 )
 from .user_schemas import AddUserRolesDTO, CreateUserDTO, ReplaceUserDTO, UpdateUserDTO

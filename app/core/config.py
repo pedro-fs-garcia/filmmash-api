@@ -5,8 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Filmmash API"
-    PROJECT_DESCRIPTION: str = "Backend e API GATEWAY para o projeto FilmMash"
+    PROJECT_NAME: str = "5_semestre_backend API"
+    PROJECT_DESCRIPTION: str = "Backend e API GATEWAY para o projeto 5_semestre_backend"
     PROJECT_VERSION: str = "0.1.0"
 
     @property
@@ -21,9 +21,9 @@ class Settings(BaseSettings):
 
     # CORS settings
     CORS_ALLOW_ORIGINS: list[str] = ["*"]
-    CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: list[str] = ["*"]
-    CORS_ALLOW_HEADERS: list[str] = ["*"]
+    CORS_ALLOW_CREDENTIALS: bool = False
+    CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE"]
+    CORS_ALLOW_HEADERS: list[str] = ["Authorization", "Content-Type"]
 
     # Postgres settings
     POSTGRES_USER: str = "postgres"
@@ -62,10 +62,13 @@ class Settings(BaseSettings):
 
     # JWT variables
     JWT_SECRET_KEY: str = "your_jwt_secret_key"
+    ACCESS_TOKEN_SIGNING_KEY: str = "your_access_token_siging_key"
+    REFRESH_TOKEN_SIGNING_KEY: str = "your_refresh_token_siging_key"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 60
     SESSION_EXPIRE_DAYS: int = 180
+    DEFAULT_ROLE_NAME: str = "user"
 
     @property
     def access_token_timedelta(self) -> timedelta:

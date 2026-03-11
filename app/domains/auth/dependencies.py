@@ -1,11 +1,19 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.dependencies import JWTServiceDep, PasswordSecurityDep
+from app.core.exceptions import AppHTTPException
 from app.db.postgres.dependencies import PgSessionDep
 
-from .entities import Session, User
+from .entities import Permission, Session, UserWithRoles
+from .exceptions import (
+    InvalidCredentialsError,
+    InvalidSessionError,
+    SessionNotFoundError,
+    UserNotFoundError,
+)
 from .repositories.permission_repository import PermissionRepository
 from .repositories.role_repository import RoleRepository
 from .repositories.session_repository import SessionRepository
@@ -15,6 +23,8 @@ from .services.permission_service import PermissionService
 from .services.role_service import RoleService
 from .services.session_service import SessionService
 from .services.user_service import UserService
+
+bearer_scheme = HTTPBearer()
 
 
 # ============================================================
@@ -68,6 +78,7 @@ def get_session_service(
 def get_auth_service(
     user_service: Annotated[UserService, Depends(get_user_service)],
     session_service: Annotated[SessionService, Depends(get_session_service)],
+    role_service: Annotated[RoleService, Depends(get_role_service)],
     jwt_service: JWTServiceDep,
     password_security: PasswordSecurityDep,
 ) -> AuthService:
@@ -76,14 +87,44 @@ def get_auth_service(
         session_service=session_service,
         jwt_service=jwt_service,
         password_security=password_security,
+        role_service=role_service,
     )
 
 
 async def get_current_user_session(
     service: Annotated[AuthService, Depends(get_auth_service)],
-    access_token: str,
-) -> tuple[User, Session]:
-    return await service.load_current_user_session(access_token)
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
+) -> tuple[UserWithRoles, Session]:
+    try:
+        return await service.load_current_user_session(credentials.credentials)
+    except (
+        InvalidCredentialsError,
+        InvalidSessionError,
+        SessionNotFoundError,
+        UserNotFoundError,
+    ) as e:
+        raise AppHTTPException(status_code=401, detail=str(e)) from e
+
+
+async def get_user_permissions(
+    service: Annotated[UserService, Depends(get_user_service)],
+    auth: Annotated[tuple[UserWithRoles, Session], Depends(get_current_user_session)],
+) -> list[Permission]:
+    user, _session = auth
+    return await service.get_user_permissions(user.id)
+
+
+UserPermissionsDep = Annotated[list[Permission], Depends(get_user_permissions)]
+
+
+def require_permission(permission_name: str) -> Any:
+    async def checker(permissions: UserPermissionsDep) -> bool:
+        names = [p.name for p in permissions]
+        if permission_name not in names:
+            raise AppHTTPException(status_code=403, detail="Insufficient permissions")
+        return True
+
+    return Depends(checker)
 
 
 # ============================================================
@@ -103,4 +144,4 @@ SessionRepoDep = Annotated[SessionRepository, Depends(get_session_repository)]
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 
-CurrentUserSessionDep = Annotated[tuple[User, Session], Depends(get_current_user_session)]
+CurrentUserSessionDep = Annotated[tuple[UserWithRoles, Session], Depends(get_current_user_session)]

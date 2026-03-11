@@ -1,17 +1,13 @@
 from enum import Enum
 
+from app.core.http.schemas import DeviceType as DeviceType  # noqa: F401
+
 
 class SessionStatus(Enum):
     ACTIVE = "active"
     EXPIRED = "expired"
     INVALID = "invalid"
     REVOKED = "revoked"
-
-
-class DeviceType(Enum):
-    MOBILE = "mobile"
-    TABLET = "tablet"
-    DESKTOP = "desktop"
 
 
 class OAuthProvider(Enum):

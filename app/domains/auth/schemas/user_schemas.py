@@ -13,6 +13,7 @@ class CreateUserDTO(BaseDTO):
     oauth_provider_id: str | None = None
     is_active: bool = True
     is_verified: bool = False
+    role_ids: list[int] = []
 
     @model_validator(mode="after")
     def validate_auth_method(self) -> "CreateUserDTO":

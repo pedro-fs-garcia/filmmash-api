@@ -40,6 +40,8 @@ class ResponseFactory:
         if meta_extensions:
             meta.update(meta_extensions)
 
+        meta["success"] = False
+
         content = ErrorContent(
             type=type_url,
             title=title,

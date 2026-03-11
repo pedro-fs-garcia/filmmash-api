@@ -27,6 +27,9 @@ class RoleService:
         role = await self.repo.delete(id)
         return role
 
+    async def get_by_name(self, name: str) -> Role | None:
+        return await self.repo.get_by_name(name)
+
     async def get_with_permissions(self, id: int) -> RoleWithPermissions | None:
         role = await self.repo.get_with_permissions(id)
         return role

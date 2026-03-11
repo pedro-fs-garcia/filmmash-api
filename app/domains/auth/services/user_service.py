@@ -4,7 +4,7 @@ from app.db.exceptions import ResourceNotFoundError
 from app.domains.auth.exceptions import UserCannotLoseLoginMethodError
 from app.domains.auth.repositories.user_repository import UserRepository
 
-from ..entities import User, UserWithRoles
+from ..entities import Permission, User, UserWithRoles
 from ..schemas import CreateUserDTO, ReplaceUserDTO, UpdateUserDTO
 
 
@@ -12,19 +12,23 @@ class UserService:
     def __init__(self, repo: UserRepository):
         self.repo: UserRepository = repo
 
-    async def create(self, dto: CreateUserDTO) -> User:
+    async def create(self, dto: CreateUserDTO) -> UserWithRoles:
         return await self.repo.create(dto)
 
     async def get_all(self) -> list[User]:
         return await self.repo.get_all()
 
-    async def get_by_id(self, id: UUID, with_roles: bool = False) -> User | None:
-        if with_roles:
-            return await self.repo.get_with_roles(id)
+    async def get_by_id(self, id: UUID) -> User | None:
         return await self.repo.get_by_id(id)
+
+    async def get_by_id_with_roles(self, id: UUID) -> UserWithRoles | None:
+        return await self.repo.get_with_roles(id)
 
     async def get_by_email(self, email: str) -> User | None:
         return await self.repo.get_by_email(email)
+
+    async def get_by_email_with_roles(self, email: str) -> UserWithRoles | None:
+        return await self.repo.get_by_email_with_roles(email)
 
     async def update(self, id: UUID, dto: UpdateUserDTO | ReplaceUserDTO) -> User | None:
         user = await self.repo.get_by_id(id)
@@ -52,3 +56,6 @@ class UserService:
         if missing_ids is not None:
             raise ValueError(f"Roles not found: {missing_ids}")
         return user
+
+    async def get_user_permissions(self, id: UUID) -> list[Permission]:
+        return await self.repo.get_user_permissions(id)

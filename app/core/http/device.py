@@ -2,8 +2,7 @@ import re
 
 from fastapi import Request
 
-from app.domains.auth.enums import DeviceType
-from app.domains.auth.schemas import SessionDeviceInfo
+from app.core.http.schemas import DeviceType, SessionDeviceInfo
 
 _CH_UA_RE = re.compile(r'"(?P<brand>[^"]+)";v="(?P<version>\d+)"')
 

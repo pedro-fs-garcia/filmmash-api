@@ -44,5 +44,23 @@ def _add_http_middlewares(app: FastAPI) -> None:
     async def get_device_info_middleware(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        request.state.device_info = get_device_info(request).model_dump(mode="json")
+        request.state.device_info = get_device_info(request)
+        return await call_next(request)
+
+    @app.middleware("http")
+    async def add_security_headers_middleware(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        response = await call_next(request)
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+    @app.middleware("http")
+    async def add_ratelimiting_middleware(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        # TODO: implement rate limiting
         return await call_next(request)

@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+import re
+
+from pydantic import BaseModel, EmailStr, field_validator
 
 
 class UserCreatedResponse(BaseModel):
@@ -24,11 +26,19 @@ class LoginResponse(BaseModel):
 
 
 class RegisterUserRequest(BaseModel):
-    email: str
+    email: EmailStr
     username: str
     password: str
 
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        password_regex = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$")
+        if not password_regex.match(v):
+            raise ValueError("password must be 8+ chars with upper, lower, number and special char")
+        return v
+
 
 class UserLoginRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
