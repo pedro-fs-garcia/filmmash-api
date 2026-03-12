@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.exceptions import ResourceAlreadyExistsError
 from app.domains.auth.entities import User
 from app.domains.auth.enums import OAuthProvider
 from app.domains.auth.models import Role as RoleModel
@@ -107,6 +108,124 @@ class TestUserRepository:
         assert user.is_verified is False
 
     @pytest.mark.asyncio
+    async def test_create_user_with_roles(
+        self, user_repo: UserRepository, db_session: AsyncSession
+    ) -> None:
+        role1 = RoleModel(name="create_role_a", description="Role A")
+        role2 = RoleModel(name="create_role_b", description="Role B")
+        db_session.add_all([role1, role2])
+        await db_session.commit()
+        await db_session.refresh(role1)
+        await db_session.refresh(role2)
+
+        dto = CreateUserDTO(
+            email=f"withroles_{uuid4().hex[:8]}@example.com",
+            password_hash="hashed_password",
+            role_ids=[role1.id, role2.id],
+        )
+        user = await user_repo.create(dto)
+        assert user is not None
+        assert user.roles is not None
+        assert len(user.roles) == 2
+        assert {r.id for r in user.roles} == {role1.id, role2.id}
+        assert {r.name for r in user.roles} == {"create_role_a", "create_role_b"}
+
+    @pytest.mark.asyncio
+    async def test_create_user_with_single_role(
+        self, user_repo: UserRepository, db_session: AsyncSession
+    ) -> None:
+        role = RoleModel(name="single_role", description="Only role")
+        db_session.add(role)
+        await db_session.commit()
+        await db_session.refresh(role)
+
+        dto = CreateUserDTO(
+            email=f"singlerole_{uuid4().hex[:8]}@example.com",
+            password_hash="hashed_password",
+            role_ids=[role.id],
+        )
+        user = await user_repo.create(dto)
+        assert user is not None
+        assert user.roles is not None
+        assert len(user.roles) == 1
+        assert user.roles[0].id == role.id
+        assert user.roles[0].name == "single_role"
+        assert user.roles[0].description == "Only role"
+
+    @pytest.mark.asyncio
+    async def test_create_user_with_roles_returns_correct_entity(
+        self, user_repo: UserRepository, db_session: AsyncSession
+    ) -> None:
+        """Verify the returned UserWithRoles has all user fields plus roles."""
+        role = RoleModel(name="entity_check_role")
+        db_session.add(role)
+        await db_session.commit()
+        await db_session.refresh(role)
+
+        dto = CreateUserDTO(
+            email=f"entitycheck_{uuid4().hex[:8]}@example.com",
+            username="entityuser",
+            name="Entity User",
+            password_hash="hashed_password",
+            role_ids=[role.id],
+        )
+        user = await user_repo.create(dto)
+        assert user.email == dto.email
+        assert user.username == dto.username
+        assert user.name == dto.name
+        assert user.password_hash == dto.password_hash
+        assert user.is_active is True
+        assert user.is_verified is False
+        assert user.roles is not None
+        assert len(user.roles) == 1
+        assert user.roles[0].name == "entity_check_role"
+
+    @pytest.mark.asyncio
+    async def test_create_user_roles_persisted_in_db(
+        self, user_repo: UserRepository, db_session: AsyncSession
+    ) -> None:
+        """Roles assigned at creation should be visible via get_with_roles."""
+        role = RoleModel(name="persist_role", description="Should persist")
+        db_session.add(role)
+        await db_session.commit()
+        await db_session.refresh(role)
+
+        dto = CreateUserDTO(
+            email=f"persist_{uuid4().hex[:8]}@example.com",
+            password_hash="hashed_password",
+            role_ids=[role.id],
+        )
+        created = await user_repo.create(dto)
+        fetched = await user_repo.get_with_roles(created.id)
+        assert fetched is not None
+        assert fetched.roles is not None
+        assert len(fetched.roles) == 1
+        assert fetched.roles[0].id == role.id
+        assert fetched.roles[0].name == "persist_role"
+
+    @pytest.mark.asyncio
+    async def test_create_user_with_empty_role_ids(self, user_repo: UserRepository) -> None:
+        dto = CreateUserDTO(
+            email=f"noroles_{uuid4().hex[:8]}@example.com",
+            password_hash="hashed_password",
+            role_ids=[],
+        )
+        user = await user_repo.create(dto)
+        assert user is not None
+        assert user.roles is not None
+        assert len(user.roles) == 0
+
+    @pytest.mark.asyncio
+    async def test_create_user_with_nonexistent_role_ids(self, user_repo: UserRepository) -> None:
+        dto = CreateUserDTO(
+            email=f"badroles_{uuid4().hex[:8]}@example.com",
+            password_hash="hashed_password",
+            role_ids=[99999],
+        )
+        with pytest.raises(ResourceAlreadyExistsError):
+            await user_repo.create(dto)
+
+    @pytest.mark.asyncio
     async def test_create_user_with_oauth_success(self, user_repo: UserRepository) -> None:
         dto = self.create_with_oauth_dto
         user = await user_repo.create(dto)
@@ -124,7 +243,7 @@ class TestUserRepository:
             email=self.create_with_email_password_dto.email,
             password_hash="new_hashed_password_here",
         )
-        with pytest.raises(SQLAlchemyError):
+        with pytest.raises((SQLAlchemyError, ResourceAlreadyExistsError)):
             await user_repo.create(new_dto)
 
     @pytest.mark.asyncio
@@ -138,7 +257,7 @@ class TestUserRepository:
             username=self.create_with_email_password_dto.username,
             password_hash="new_hashed_password_here",
         )
-        with pytest.raises(SQLAlchemyError):
+        with pytest.raises((SQLAlchemyError, ResourceAlreadyExistsError)):
             await user_repo.create(new_dto)
 
     @pytest.mark.asyncio
@@ -152,7 +271,7 @@ class TestUserRepository:
             oauth_provider=self.create_with_oauth_dto.oauth_provider,
             oauth_provider_id=self.create_with_oauth_dto.oauth_provider_id,
         )
-        with pytest.raises(SQLAlchemyError):
+        with pytest.raises((SQLAlchemyError, ResourceAlreadyExistsError)):
             await user_repo.create(new_dto)
 
     @pytest.mark.asyncio
@@ -161,10 +280,10 @@ class TestUserRepository:
         user2 = await user_repo.create(self.create_with_oauth_dto)
         users = await user_repo.get_all()
         assert len(users) == 2
-        assert user1 in users
-        assert user2 in users
+        user_ids = {user.id for user in users}
+        assert user1.id in user_ids
+        assert user2.id in user_ids
         assert user1.id != user2.id
-        assert {user.id for user in users} == {user1.id, user2.id}
         assert {user.email for user in users} == {user1.email, user2.email}
         assert {user.username for user in users} == {user1.username, user2.username}
         assert {user.name for user in users} == {user1.name, user2.name}
@@ -187,7 +306,6 @@ class TestUserRepository:
         assert retrieved_user.id == user.id
         assert retrieved_user.email == user.email
         assert retrieved_user.username == user.username
-        assert retrieved_user == user
 
     @pytest.mark.asyncio
     async def test_get_by_id_not_found(self, user_repo: UserRepository) -> None:
@@ -213,8 +331,9 @@ class TestUserRepository:
         user2 = await user_repo.create(self.create_with_oauth_dto)
         users = await user_repo.get_active()
         assert len(users) == 2
-        assert user1 in users
-        assert user2 in users
+        user_ids = {user.id for user in users}
+        assert user1.id in user_ids
+        assert user2.id in user_ids
         assert user1.id != user2.id
         assert {user.id for user in users} == {user1.id, user2.id}
 
@@ -310,7 +429,8 @@ class TestUserRepository:
         assert user is not None
         deleted_user = await user_repo.hard_delete(user.id)
         assert deleted_user is not None
-        assert deleted_user == user
+        assert deleted_user.id == user.id
+        assert deleted_user.email == user.email
         fetched_user = await user_repo.get_by_id(user.id)
         assert fetched_user is None
 

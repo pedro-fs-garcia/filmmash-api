@@ -1,4 +1,5 @@
-from collections.abc import AsyncGenerator
+import asyncio
+from collections.abc import AsyncGenerator, Generator
 from typing import Any
 
 import pytest
@@ -12,10 +13,32 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import get_settings
+from app.db.postgres.base import Base
 from app.db.postgres.dependencies import get_postgres_session
 from app.main import create_app
 
 settings = get_settings()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _create_tables() -> Generator[None, Any, None]:
+    """Create all tables once before the test session, drop after."""
+
+    async def _setup() -> None:
+        engine = create_async_engine(settings.test_database_url)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        await engine.dispose()
+
+    async def _teardown() -> None:
+        engine = create_async_engine(settings.test_database_url)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+        await engine.dispose()
+
+    asyncio.run(_setup())
+    yield
+    asyncio.run(_teardown())
 
 
 @pytest.fixture
@@ -49,10 +72,15 @@ def app() -> FastAPI:
     return app
 
 
-@pytest.fixture(scope="module")
-async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
+@pytest.fixture
+async def client(app: FastAPI, db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Provide an HTTPX AsyncClient connected to the FastAPI test app."""
-    app.dependency_overrides[get_postgres_session] = lambda: db_session
+
+    async def _override_session() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    app.dependency_overrides[get_postgres_session] = _override_session
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as async_client:
         yield async_client
+    app.dependency_overrides.clear()

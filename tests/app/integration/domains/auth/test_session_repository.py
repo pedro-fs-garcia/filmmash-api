@@ -7,13 +7,13 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.http.schemas import SessionDeviceInfo
 from app.domains.auth.entities import Session
 from app.domains.auth.enums import SessionStatus
 from app.domains.auth.models import User as UserModel
 from app.domains.auth.repositories.session_repository import SessionRepository
 from app.domains.auth.schemas.session_schemas import (
     CreateSessionDTO,
-    SessionDeviceInfo,
     UpdateSessionDTO,
 )
 
@@ -24,7 +24,10 @@ class TestSessionDTOs:
         refresh_token_hash = uuid4().hex
         expires_at = datetime.now() + timedelta(days=2)
         dto = CreateSessionDTO(
-            user_id=user_id, refresh_token_hash=refresh_token_hash, expires_at=expires_at
+            user_id=user_id,
+            role_names=[],
+            refresh_token_hash=refresh_token_hash,
+            expires_at=expires_at,
         )
         assert dto is not None
         assert dto.user_id
@@ -96,6 +99,7 @@ class TestSessionRepository:
     async def create_dto(self, user_id: UUID) -> CreateSessionDTO:
         return CreateSessionDTO(
             user_id=user_id,
+            role_names=[],
             refresh_token_hash=uuid4().hex,
             expires_at=datetime.now() + timedelta(days=2),
         )
@@ -119,6 +123,7 @@ class TestSessionRepository:
         for _ in range(5):
             dto = CreateSessionDTO(
                 user_id=user_id,
+                role_names=[],
                 refresh_token_hash=uuid4().hex,
                 expires_at=datetime.now() + timedelta(days=2),
                 status=random.choice(list(SessionStatus)),
@@ -183,6 +188,7 @@ class TestSessionRepository:
     ) -> None:
         dto = CreateSessionDTO(
             user_id=uuid4(),
+            role_names=[],
             refresh_token_hash=uuid4().hex,
             expires_at=datetime.now() + timedelta(days=2),
         )

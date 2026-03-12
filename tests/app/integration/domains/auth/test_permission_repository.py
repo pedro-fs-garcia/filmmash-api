@@ -3,6 +3,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.exceptions import ResourceAlreadyExistsError
 from app.domains.auth.models import Role as RoleModel
 from app.domains.auth.repositories.permission_repository import PermissionRepository
 from app.domains.auth.schemas.permission_schemas import (
@@ -92,7 +93,7 @@ class TestPermissionRepository:
         self, permission_repo: PermissionRepository
     ) -> None:
         await permission_repo.create(self.create_dto)
-        with pytest.raises(SQLAlchemyError):
+        with pytest.raises((SQLAlchemyError, ResourceAlreadyExistsError)):
             await permission_repo.create(self.create_dto)
 
     @pytest.mark.asyncio
