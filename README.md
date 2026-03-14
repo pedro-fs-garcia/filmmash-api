@@ -4,18 +4,18 @@ Backend and API Gateway built with **FastAPI**, **SQLAlchemy 2** (async), and **
 
 ## Tech Stack
 
-| Layer          | Technology                              |
-| -------------- | --------------------------------------- |
-| Framework      | FastAPI 0.121+                          |
-| Language       | Python 3.12+                            |
-| Database       | PostgreSQL + asyncpg                    |
-| ORM            | SQLAlchemy 2 (async)                    |
-| Migrations     | Alembic                                 |
-| Auth           | JWT (PyJWT) + Argon2 password hashing   |
-| Metrics        | prometheus-client + psutil              |
-| Package mgmt   | Poetry                                  |
-| Linting        | Ruff, Bandit, mypy                      |
-| Testing        | pytest + pytest-asyncio + httpx         |
+| Layer        | Technology                            |
+| ------------ | ------------------------------------- |
+| Framework    | FastAPI 0.121+                        |
+| Language     | Python 3.12+                          |
+| Database     | PostgreSQL + asyncpg                  |
+| ORM          | SQLAlchemy 2 (async)                  |
+| Migrations   | Alembic                               |
+| Auth         | JWT (PyJWT) + Argon2 password hashing |
+| Metrics      | prometheus-client + psutil            |
+| Package mgmt | Poetry                                |
+| Linting      | Ruff, Bandit, mypy                    |
+| Testing      | pytest + pytest-asyncio + httpx       |
 
 ## Project Structure
 
@@ -154,10 +154,10 @@ make seed
 
 Default seed data:
 
-| Roles   | Permissions                                                             |
-| ------- | ----------------------------------------------------------------------- |
-| `admin` | All `user:*`, `role:*`, `permission:*` permissions                      |
-| `user`  | All `session:*` permissions (login, refresh, logout)                    |
+| Roles   | Permissions                                          |
+| ------- | ---------------------------------------------------- |
+| `admin` | All `user:*`, `role:*`, `permission:*` permissions   |
+| `user`  | All `session:*` permissions (login, refresh, logout) |
 
 ---
 
@@ -173,6 +173,54 @@ make test-e2e
 
 Tests run with `ENVIRONMENT=test`, which targets a separate `{POSTGRES_DB}_test` database. Coverage is reported to the terminal.
 
+
+
+---
+
+## Running with Docker (API + PostgreSQL)
+
+This project includes a complete Docker setup so all developers can run the same environment on any OS.
+
+### 1. Prepare environment variables
+
+If you do not have a `.env`, copy from `.env.example` and adjust values if needed.
+
+Required PostgreSQL vars for Docker Compose:
+
+```dotenv
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=filmmash_db
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+```
+
+`POSTGRES_HOST` is automatically overridden to `db` inside the API container.
+
+### 2. Start all services
+
+```bash
+docker compose up --build
+```
+
+What happens automatically:
+
+- PostgreSQL container starts and becomes healthy
+- API container waits for PostgreSQL readiness
+- Alembic runs: `alembic upgrade head`
+- FastAPI starts on `http://localhost:8000`
+
+### 3. Stop services
+
+```bash
+docker compose down
+```
+
+To also remove Postgres persisted data:
+
+```bash
+docker compose down -v
+```
 ---
 
 ## Code Quality
@@ -208,20 +256,20 @@ make pre-commit
 
 ## Makefile Reference
 
-| Command              | Description                                      |
-| -------------------- | ------------------------------------------------ |
-| `make install`       | Install all dependencies via Poetry              |
-| `make dev`           | Run dev server with hot reload                   |
-| `make run`           | Run production server                            |
-| `make test`          | Run full test suite with coverage                |
-| `make test-e2e`      | Run end-to-end tests only                        |
-| `make lint`          | Run Ruff and Bandit linters                      |
-| `make format`        | Auto-format code with Ruff                       |
-| `make typecheck`     | Run mypy type checking                           |
-| `make migrate`       | Apply all pending Alembic migrations             |
-| `make makemigration m="msg"` | Auto-generate a new Alembic migration    |
-| `make seed`          | Seed roles, permissions, and associations        |
-| `make pre-commit`    | Run all checks (lint + format + types + tests)   |
+| Command                      | Description                                    |
+| ---------------------------- | ---------------------------------------------- |
+| `make install`               | Install all dependencies via Poetry            |
+| `make dev`                   | Run dev server with hot reload                 |
+| `make run`                   | Run production server                          |
+| `make test`                  | Run full test suite with coverage              |
+| `make test-e2e`              | Run end-to-end tests only                      |
+| `make lint`                  | Run Ruff and Bandit linters                    |
+| `make format`                | Auto-format code with Ruff                     |
+| `make typecheck`             | Run mypy type checking                         |
+| `make migrate`               | Apply all pending Alembic migrations           |
+| `make makemigration m="msg"` | Auto-generate a new Alembic migration          |
+| `make seed`                  | Seed roles, permissions, and associations      |
+| `make pre-commit`            | Run all checks (lint + format + types + tests) |
 
 ---
 
@@ -229,19 +277,19 @@ make pre-commit
 
 All domain endpoints are mounted under `/api`:
 
-| Prefix                  | Description                     |
-| ----------------------- | ------------------------------- |
-| `POST /api/auth/register` | User registration          |
-| `POST /api/auth/login`    | Login (returns tokens)     |
-| `POST /api/auth/refresh`  | Refresh token rotation     |
-| `POST /api/auth/logout`   | Revoke session             |
-| `GET  /api/auth/me`       | Current user profile       |
-| `/api/users/`              | User management (CRUD)     |
-| `/api/roles/`              | Role management (CRUD)     |
-| `/api/permissions/`        | Permission management (CRUD) |
-| `GET /`                       | Health check               |
-| `GET /metrics`                | Prometheus metrics          |
-| `GET /metrics/{prefix}`       | Filtered metrics by prefix  |
+| Prefix                    | Description                  |
+| ------------------------- | ---------------------------- |
+| `POST /api/auth/register` | User registration            |
+| `POST /api/auth/login`    | Login (returns tokens)       |
+| `POST /api/auth/refresh`  | Refresh token rotation       |
+| `POST /api/auth/logout`   | Revoke session               |
+| `GET  /api/auth/me`       | Current user profile         |
+| `/api/users/`             | User management (CRUD)       |
+| `/api/roles/`             | Role management (CRUD)       |
+| `/api/permissions/`       | Permission management (CRUD) |
+| `GET /`                   | Health check                 |
+| `GET /metrics`            | Prometheus metrics           |
+| `GET /metrics/{prefix}`   | Filtered metrics by prefix   |
 
 All protected endpoints require a `Authorization: Bearer <access_token>` header. See the [auth docs](app/domains/auth/README.md) for full details on the authentication flow.
 
@@ -263,8 +311,8 @@ Files rotate at 10 MB with 5 backups. See [core/ docs](app/core/README.md#logger
 
 The following security improvements have been identified but are **deferred for a future release**:
 
-| # | Severity | Issue | Notes |
-|---|----------|-------|-------|
-| 2 | 🔴 Critical | Hardcoded JWT secret default | `config.py` uses a placeholder if env vars are missing. Add startup validation before production deployment. |
-| 3 | 🟠 High | No rate limiting on login/register | A middleware stub exists but is not yet implemented. Recommend a Redis-backed solution for multi-instance deployments. |
-| 11 | 🔵 Low | HS256 symmetric algorithm | Consider RS256/ES256 for microservice architectures where verifying services should not hold the signing secret. |
+| #   | Severity   | Issue                              | Notes                                                                                                                  |
+| --- | ---------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 2   | 🔴 Critical | Hardcoded JWT secret default       | `config.py` uses a placeholder if env vars are missing. Add startup validation before production deployment.           |
+| 3   | 🟠 High     | No rate limiting on login/register | A middleware stub exists but is not yet implemented. Recommend a Redis-backed solution for multi-instance deployments. |
+| 11  | 🔵 Low      | HS256 symmetric algorithm          | Consider RS256/ES256 for microservice architectures where verifying services should not hold the signing secret.       |
