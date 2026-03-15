@@ -60,6 +60,21 @@ class Settings(BaseSettings):
             f"{self.POSTGRES_PORT}/postgres"
         )
 
+    MONGO_USER: str = ""
+    MONGO_PASSWORD: str = ""
+    MONGO_HOST: str = "localhost"
+    MONGO_PORT: int = 27017
+    MONGO_DB: str = "filmmash_db"
+
+    @property
+    def mongo_database_url(self) -> str:
+        if self.MONGO_USER and self.MONGO_PASSWORD:
+            return (
+                f"mongodb://{self.MONGO_USER}:{self.MONGO_PASSWORD}@"
+                f"{self.MONGO_HOST}:{self.MONGO_PORT}/{self.MONGO_DB}"
+            )
+        return f"mongodb://{self.MONGO_HOST}:{self.MONGO_PORT}/{self.MONGO_DB}"
+
     # JWT variables
     JWT_SECRET_KEY: str = "your_jwt_secret_key"
     ACCESS_TOKEN_SIGNING_KEY: str = "your_access_token_siging_key"

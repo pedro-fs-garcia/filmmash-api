@@ -1,6 +1,6 @@
 # 5_semestre_backend API
 
-Backend and API Gateway built with **FastAPI**, **SQLAlchemy 2** (async), and **PostgreSQL**.
+Backend and API Gateway built with **FastAPI**, **SQLAlchemy 2** (async), **PostgreSQL**, and **MongoDB (Motor)**.
 
 ## Tech Stack
 
@@ -8,7 +8,7 @@ Backend and API Gateway built with **FastAPI**, **SQLAlchemy 2** (async), and **
 | ------------ | ------------------------------------- |
 | Framework    | FastAPI 0.121+                        |
 | Language     | Python 3.12+                          |
-| Database     | PostgreSQL + asyncpg                  |
+| Database     | PostgreSQL + asyncpg, MongoDB + Motor |
 | ORM          | SQLAlchemy 2 (async)                  |
 | Migrations   | Alembic                               |
 | Auth         | JWT (PyJWT) + Argon2 password hashing |
@@ -24,7 +24,7 @@ Backend and API Gateway built with **FastAPI**, **SQLAlchemy 2** (async), and **
 │   ├── main.py              # FastAPI app factory + lifespan
 │   ├── api/                  # Versioned API router
 │   ├── core/                 # Config, logging, security, middleware, metrics
-│   ├── db/                   # Database engine, session, exceptions
+│   ├── db/                   # Database engines, dependencies, exceptions (Postgres + MongoDB)
 │   ├── domains/              # Feature modules (auth, health, …)
 │   ├── schemas/              # Shared response schemas
 │   └── seed/                 # Database seed scripts
@@ -51,6 +51,7 @@ Each sub-module has its own README with detailed documentation:
 
 - **Python 3.12+**
 - **PostgreSQL** (running locally or in a container)
+- **MongoDB** (running locally or in a container)
 - **Poetry** (package manager) — [install guide](https://python-poetry.org/docs/#installation)
 
 ---
@@ -83,6 +84,13 @@ POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DB=filmmash_db
 
+# MongoDB
+MONGO_USER=
+MONGO_PASSWORD=
+MONGO_HOST=localhost
+MONGO_PORT=27017
+MONGO_DB=filmmash_db
+
 # JWT (change the secrets in any non-local environment)
 ACCESS_TOKEN_SIGNING_KEY=change-me-in-production
 REFRESH_TOKEN_SIGNING_KEY=change-me-in-production
@@ -101,17 +109,22 @@ PROJECT_VERSION=0.1.0
 
 Full variable reference is in the [core/ docs](app/core/README.md#configuration-configpy).
 
-### 3. Set up the database
+### 3. Set up the databases
 
 #### Option A: Development mode (auto-setup)
 
-When `ENVIRONMENT=development`, the app **automatically creates the database and all tables** on startup (drops and recreates). Just make sure PostgreSQL is running:
+When `ENVIRONMENT=development`, the app:
+
+- connects to MongoDB on startup,
+- and **automatically creates the PostgreSQL database and all tables** (drops and recreates).
+
+Make sure both PostgreSQL and MongoDB are running:
 
 ```bash
 make dev
 ```
 
-> **Warning:** This drops all tables every startup. Use only for local development.
+> **Warning:** Postgres auto-setup drops all tables every startup in development. Use only for local development.
 
 #### Option B: Using Alembic migrations (recommended for staging/production)
 
@@ -177,7 +190,7 @@ Tests run with `ENVIRONMENT=test`, which targets a separate `{POSTGRES_DB}_test`
 
 ---
 
-## Running with Docker (API + PostgreSQL)
+## Running with Docker (API + PostgreSQL + MongoDB)
 
 This project includes a complete Docker setup so all developers can run the same environment on any OS.
 
@@ -185,7 +198,7 @@ This project includes a complete Docker setup so all developers can run the same
 
 If you do not have a `.env`, copy from `.env.example` and adjust values if needed.
 
-Required PostgreSQL vars for Docker Compose:
+Required database vars for Docker Compose:
 
 ```dotenv
 POSTGRES_USER=postgres
@@ -193,9 +206,13 @@ POSTGRES_PASSWORD=postgres
 POSTGRES_DB=filmmash_db
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
+
+MONGO_HOST=localhost
+MONGO_PORT=27017
+MONGO_DB=filmmash_db
 ```
 
-`POSTGRES_HOST` is automatically overridden to `db` inside the API container.
+`POSTGRES_HOST` is automatically overridden to `db`, and `MONGO_HOST` to `mongo`, inside the API container.
 
 ### 2. Start all services
 
@@ -206,7 +223,9 @@ docker compose up --build
 What happens automatically:
 
 - PostgreSQL container starts and becomes healthy
+- MongoDB container starts and becomes healthy
 - API container waits for PostgreSQL readiness
+- API container waits for MongoDB readiness
 - Alembic runs: `alembic upgrade head`
 - FastAPI starts on `http://localhost:8000`
 
@@ -216,7 +235,7 @@ What happens automatically:
 docker compose down
 ```
 
-To also remove Postgres persisted data:
+To also remove Postgres and Mongo persisted data:
 
 ```bash
 docker compose down -v

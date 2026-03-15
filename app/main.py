@@ -12,7 +12,7 @@ from app.core.background_tasks import global_background_tasks
 from app.core.init_routers import initiate_routers
 from app.core.logger import get_logger
 from app.core.middleware import add_middlewares
-from app.db import close_postgres_db, init_postgres_db
+from app.db import close_postgres_db, init_postgres_db, mongo_db
 
 
 @asynccontextmanager
@@ -26,6 +26,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if settings.ENVIRONMENT == "development":
             await init_postgres_db()
 
+        await mongo_db.connect()
         yield
 
     finally:
@@ -34,6 +35,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         await close_postgres_db()
+        await mongo_db.disconnect()
         logger.stop()
 
 

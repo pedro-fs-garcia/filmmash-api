@@ -1,14 +1,19 @@
 # db/ Module
 
-Database layer for the application, currently providing async PostgreSQL support via SQLAlchemy.
+Database layer for the application, providing:
+
+- Async PostgreSQL support via SQLAlchemy.
+- Async MongoDB support via Motor.
 
 ## Structure
 
 ```
 db/
-├── __init__.py          # Public API: PgSessionDep, init_postgres_db, close_postgres_db
+├── __init__.py          # Public API re-exports for Postgres and MongoDB
 ├── exceptions.py        # Shared database exceptions
-├── mongo/               # Reserved for future MongoDB support
+├── mongo/
+│   ├── db.py            # MongoDB client/database singleton and connect/disconnect
+│   └── dependencies.py  # FastAPI MongoDB dependency
 └── postgres/
     ├── base.py          # SQLAlchemy DeclarativeBase for all models
     ├── dependencies.py  # FastAPI session dependency
@@ -21,31 +26,69 @@ db/
 Everything needed by external modules is re-exported from `app.db`:
 
 ```python
-from app.db import init_postgres_db, close_postgres_db, PgSessionDep
+from app.db import (
+    init_postgres_db,
+    close_postgres_db,
+    PgSessionDep,
+    mongo_db,
+    MongoSessionDep,
+)
 ```
 
-| Symbol              | Type                      | Description                                                  |
-| ------------------- | ------------------------- | ------------------------------------------------------------ |
-| `init_postgres_db`  | `async () -> None`        | Creates the database if it doesn't exist, then creates all tables. |
-| `close_postgres_db` | `async () -> None`        | Disposes of the engine connection pool.                      |
-| `PgSessionDep`      | FastAPI `Annotated` type  | Inject an `AsyncSession` into route handlers via `Depends`.  |
+| Symbol              | Type                     | Description                                                                 |
+| ------------------- | ------------------------ | --------------------------------------------------------------------------- |
+| `init_postgres_db`  | `async () -> None`       | Creates the database if it doesn't exist, then creates all Postgres tables. |
+| `close_postgres_db` | `async () -> None`       | Disposes of the Postgres engine connection pool.                            |
+| `PgSessionDep`      | FastAPI `Annotated` type | Inject an `AsyncSession` into route handlers via `Depends`.                 |
+| `mongo_db`          | `MongoDb` singleton      | Shared MongoDB client/database holder with connect/disconnect.              |
+| `MongoSessionDep`   | FastAPI `Annotated` type | Inject a Motor `AsyncIOMotorDatabase` into route handlers via `Depends`.    |
 
 ## Configuration
 
-The engine reads connection settings from `app.core.config.get_settings()`. The relevant environment variables are:
+Connection settings are read from `app.core.config.get_settings()`.
 
-| Variable            | Default        |
-| ------------------- | -------------- |
-| `POSTGRES_USER`     | `postgres`     |
-| `POSTGRES_PASSWORD` | `postgres`     |
-| `POSTGRES_HOST`     | `localhost`    |
-| `POSTGRES_PORT`     | `5432`         |
-| `POSTGRES_DB`       | `filmmash_db`  |
+### PostgreSQL
+
+Relevant environment variables:
+
+| Variable            | Default       |
+| ------------------- | ------------- |
+| `POSTGRES_USER`     | `postgres`    |
+| `POSTGRES_PASSWORD` | `postgres`    |
+| `POSTGRES_HOST`     | `localhost`   |
+| `POSTGRES_PORT`     | `5432`        |
+| `POSTGRES_DB`       | `filmmash_db` |
 
 These are composed into an `asyncpg` connection URL:
 
 ```
 postgresql+asyncpg://{user}:{password}@{host}:{port}/{db}
+```
+
+### MongoDB (Motor)
+
+Relevant environment variables:
+
+| Variable         | Default       |
+| ---------------- | ------------- |
+| `MONGO_USER`     | `""` (empty)  |
+| `MONGO_PASSWORD` | `""` (empty)  |
+| `MONGO_HOST`     | `localhost`   |
+| `MONGO_PORT`     | `27017`       |
+| `MONGO_DB`       | `filmmash_db` |
+
+MongoDB connection URL rules:
+
+- If `MONGO_USER` and `MONGO_PASSWORD` are set:
+
+```
+mongodb://{user}:{password}@{host}:{port}/{db}
+```
+
+- Otherwise:
+
+```
+mongodb://{host}:{port}/{db}
 ```
 
 ## Lifecycle
@@ -61,9 +104,21 @@ Called during the FastAPI lifespan (in development mode). It:
 
 > **Warning:** `init_postgres_db` drops and recreates all tables on every call. It is intended for development only. In production, use Alembic migrations.
 
+### Startup — MongoDB connect
+
+During app lifespan startup, `mongo_db.connect()` is called. It:
+
+1. Creates an `AsyncIOMotorClient` using `settings.mongo_database_url`.
+2. Selects the database `settings.MONGO_DB`.
+3. Runs `ping` against `admin` to fail fast if MongoDB is unavailable.
+
 ### Shutdown — `close_postgres_db()`
 
 Called when the application shuts down. Disposes the async engine, releasing all pooled connections.
+
+### Shutdown — MongoDB disconnect
+
+During app shutdown, `mongo_db.disconnect()` closes the Mongo client and clears in-memory references.
 
 ## Session Management
 
@@ -109,6 +164,33 @@ from app.db.postgres.dependencies import get_postgres_session
 app.dependency_overrides[get_postgres_session] = my_test_session_generator
 ```
 
+### MongoDB Client + Dependency (`mongo/db.py`, `mongo/dependencies.py`)
+
+`mongo_db` is a singleton with:
+
+- `connect()` / `disconnect()` lifecycle methods.
+- `get_db()` to retrieve the selected Motor database.
+
+`get_mongo_session()` returns the active `AsyncIOMotorDatabase` from `mongo_db`.
+
+Use `MongoSessionDep` to inject the database in route handlers:
+
+```python
+from app.db import MongoSessionDep
+
+@router.get("/events")
+async def list_events(db: MongoSessionDep):
+    return await db["events"].find().to_list(length=100)
+```
+
+For tests, you can override the dependency:
+
+```python
+from app.db.mongo.dependencies import get_mongo_session
+
+app.dependency_overrides[get_mongo_session] = my_test_mongo_session
+```
+
 ## Defining Models
 
 All SQLAlchemy models must inherit from `Base`:
@@ -126,10 +208,10 @@ class Item(Base):
 
 `db.exceptions` provides two reusable exceptions for repository layers:
 
-| Exception                   | Attributes                    | Message format                                             |
-| --------------------------- | ----------------------------- | ---------------------------------------------------------- |
-| `ResourceAlreadyExistsError`| `resource_name`, `identifier` | `"{resource_name} with identifier {identifier} already exists"` |
-| `ResourceNotFoundError`     | `resource_name`, `identifier` | `"{resource_name} with identifier {identifier} does not exists"` |
+| Exception                    | Attributes                    | Message format                                                   |
+| ---------------------------- | ----------------------------- | ---------------------------------------------------------------- |
+| `ResourceAlreadyExistsError` | `resource_name`, `identifier` | `"{resource_name} with identifier {identifier} already exists"`  |
+| `ResourceNotFoundError`      | `resource_name`, `identifier` | `"{resource_name} with identifier {identifier} does not exists"` |
 
 Usage:
 
